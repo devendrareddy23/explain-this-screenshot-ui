@@ -1,33 +1,43 @@
 import { useState } from "react";
+import "./App.css";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 function App() {
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [result, setResult] = useState("");
+  const [preview, setPreview] = useState("");
+  const [explanation, setExplanation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleFile = (e) => {
-    const selected = e.target.files[0];
-    if (!selected) return;
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
 
-    setFile(selected);
-    setPreview(URL.createObjectURL(selected));
-    setResult("");
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+    setPreview(URL.createObjectURL(selectedFile));
+    setExplanation("");
+    setError("");
   };
 
-  const analyzeScreenshot = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
     if (!file) {
-      alert("Upload screenshot first");
+      setError("Please select an image first.");
       return;
     }
 
     const formData = new FormData();
-    formData.append("screenshot", file);
+    formData.append("image", file);
 
     try {
       setLoading(true);
+      setError("");
+      setExplanation("");
 
-      const res = await fetch("http://localhost:8000/api/screenshots", {
+      const res = await fetch(`${API_URL}/api/screenshots`, {
         method: "POST",
         body: formData,
       });
@@ -35,53 +45,58 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Failed to analyze screenshot");
+        throw new Error(data.error || "Failed to analyze screenshot.");
       }
 
-      setResult(data.data.explanation);
+      setExplanation(
+        data.explanation || data.result || "No explanation returned."
+      );
     } catch (err) {
-      console.error(err);
-      alert(err.message || "Error analyzing screenshot");
+      setError(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: "40px", fontFamily: "Arial" }}>
-      <h1>AI Screenshot Explainer</h1>
+    <div className="app">
+      <div className="container">
+        <h1>AI Screenshot Explainer</h1>
+        <p>Upload a screenshot and AI will explain it.</p>
 
-      <p>Upload a screenshot and AI will explain it.</p>
+        <form onSubmit={handleSubmit} className="upload-form">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+          />
 
-      <input type="file" accept="image/*" onChange={handleFile} />
+          <button type="submit" disabled={loading}>
+            {loading ? "Analyzing..." : "Analyze Screenshot"}
+          </button>
+        </form>
 
-      <br />
-      <br />
+        {error && (
+          <div className="error-box">
+            <h3>Error</h3>
+            <p>{error}</p>
+          </div>
+        )}
 
-      <button onClick={analyzeScreenshot} disabled={loading}>
-        {loading ? "Analyzing..." : "Analyze Screenshot"}
-      </button>
+        {preview && (
+          <div className="preview-box">
+            <h2>Preview</h2>
+            <img src={preview} alt="Screenshot preview" className="preview-image" />
+          </div>
+        )}
 
-      <br />
-      <br />
-
-      {preview && (
-        <img
-          src={preview}
-          alt="Preview"
-          style={{ width: "400px", border: "1px solid #ccc" }}
-        />
-      )}
-
-      <br />
-      <br />
-
-      {result && (
-        <div>
-          <h2>AI Explanation</h2>
-          <p style={{ whiteSpace: "pre-line" }}>{result}</p>
-        </div>
-      )}
+        {explanation && (
+          <div className="result-box">
+            <h2>AI Explanation</h2>
+            <p>{explanation}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
