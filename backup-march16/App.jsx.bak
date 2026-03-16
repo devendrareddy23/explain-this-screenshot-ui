@@ -1,0 +1,301 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import "./App.css";
+
+const HISTORY_KEY = "explain-this-screenshot-history";
+const MAX_HISTORY_ITEMS = 5;
+
+function parseExplanation(text) {
+  const safeText = text || "";
+
+  const getSection = (label, nextLabels) => {
+    const nextPattern =
+      nextLabels.length > 0 ? nextLabels.map((l) => `${l}:`).join("|") : "$";
+
+    const pattern = new RegExp(
+      `${label}:\\s*([\\s\\S]*?)(?=${nextPattern})`,
+      "i"
+    );
+
+    const match = safeText.match(pattern);
+    return match ? match[1].trim() : "";
+  };
+
+  return {
+    errorType: getSection("Error Type", [
+      "Quick Fix",
+      "Problem",
+      "Explanation",
+      "Commands to Run",
+      "Solution",
+      "Steps",
+    ]),
+    quickFix: getSection("Quick Fix", [
+      "Problem",
+      "Explanation",
+      "Commands to Run",
+      "Solution",
+      "Steps",
+    ]),
+    problem: getSection("Problem", [
+      "Explanation",
+      "Commands to Run",
+      "Solution",
+      "Steps",
+    ]),
+    explanation: getSection("Explanation", [
+      "Commands to Run",
+      "Solution",
+      "Steps",
+    ]),
+    commands: getSection("Commands to Run", ["Solution", "Steps"]),
+    solution: getSection("Solution", ["Steps"]),
+    steps: getSection("Steps", []),
+    raw: safeText,
+  };
+}
+
+function getPreviewText({ mode, errorText, file }) {
+  if (mode === "text") {
+    const firstLine = (errorText || "").trim().split("\n")[0];
+    return firstLine || "Pasted error";
+  }
+  return file?.name || "Uploaded screenshot";
+}
+
+function App() {
+  const [mode, setMode] = useState("text");
+  const [file, setFile] = useState(null);
+  const [errorText, setErrorText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState("");
+  const [resultText, setResultText] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [history, setHistory] = useState([]);
+  const [copiedSection, setCopiedSection] = useState("");
+
+  const textareaRef = useRef(null);
+  const loadingTimeoutsRef = useRef([]);
+  const copyTimeoutRef = useRef(null);
+
+  const parsed = useMemo(() => parseExplanation(resultText), [resultText]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(HISTORY_KEY);
+    if (saved) setHistory(JSON.parse(saved));
+  }, []);
+
+  useEffect(() => {
+    if (mode === "text" && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [mode]);
+
+  const saveHistory = (items) => {
+    setHistory(items);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+  };
+
+  const addToHistory = ({ mode, errorText, file, explanation }) => {
+    const newItem = {
+      id: Date.now(),
+      mode,
+      preview: getPreviewText({ mode, errorText, file }),
+      explanation,
+      createdAt: new Date().toLocaleString(),
+    };
+
+    const updated = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS);
+    saveHistory(updated);
+  };
+
+  const startLoadingSteps = () => {
+    setLoadingStep("Reading error...");
+
+    const t1 = setTimeout(() => {
+      setLoadingStep("Understanding stack trace...");
+    }, 1500);
+
+    const t2 = setTimeout(() => {
+      setLoadingStep("Generating fix...");
+    }, 3000);
+
+    loadingTimeoutsRef.current = [t1, t2];
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setErrorMessage("");
+    setResultText("");
+    startLoadingSteps();
+
+    try {
+      const formData = new FormData();
+
+      if (mode === "upload") {
+        if (!file) {
+          setErrorMessage("Please upload screenshot.");
+          setLoading(false);
+          return;
+        }
+        formData.append("screenshot", file);
+      } else {
+        formData.append("errorText", errorText);
+      }
+
+      const res = await fetch("/api/screenshots", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.message);
+
+      setResultText(data.explanation);
+
+      addToHistory({
+        mode,
+        errorText,
+        file,
+        explanation: data.explanation,
+      });
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
+      setLoadingStep("");
+    }
+  };
+
+  const copyText = async (text, name) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSection(name);
+
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopiedSection("");
+      }, 1200);
+    } catch {
+      setErrorMessage("Copy failed.");
+    }
+  };
+
+  const copyLabel = (name) => {
+    return copiedSection === name ? "Copied!" : "Copy";
+  };
+
+  return (
+    <div className="app">
+      <div className="container">
+
+        <header className="hero">
+          <p className="badge">Developer Debugging Tool</p>
+          <h1>Fix Coding Errors Instantly</h1>
+          <p className="subtitle">
+            Paste an error or upload screenshot. Get the fix immediately.
+          </p>
+        </header>
+
+        <div className="tabs">
+          <button
+            className={mode === "text" ? "tab active" : "tab"}
+            onClick={() => setMode("text")}
+          >
+            Paste Error
+          </button>
+
+          <button
+            className={mode === "upload" ? "tab active" : "tab"}
+            onClick={() => setMode("upload")}
+          >
+            Screenshot
+          </button>
+        </div>
+
+        <form className="card form-card" onSubmit={handleSubmit}>
+
+          {mode === "text" && (
+            <textarea
+              ref={textareaRef}
+              placeholder="Paste your error here..."
+              value={errorText}
+              onChange={(e) => setErrorText(e.target.value)}
+              rows={10}
+            />
+          )}
+
+          {mode === "upload" && (
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files[0])}
+            />
+          )}
+
+          <button className="primary-btn" disabled={loading}>
+            {loading ? loadingStep || "Analyzing..." : "Analyze Error"}
+          </button>
+
+          {errorMessage && <p className="error-text">{errorMessage}</p>}
+        </form>
+
+        {resultText && (
+          <section className="results">
+
+            {parsed.quickFix && (
+              <div className="card quickfix-card">
+                <div className="section-header">
+                  <h2>⚡ Quick Fix</h2>
+                  <button
+                    onClick={() => copyText(parsed.quickFix, "quickfix")}
+                  >
+                    {copyLabel("quickfix")}
+                  </button>
+                </div>
+                <pre>{parsed.quickFix}</pre>
+              </div>
+            )}
+
+            <div className="card result-card">
+              <div className="section-header">
+                <h3>Problem</h3>
+                <button onClick={() => copyText(parsed.problem, "problem")}>
+                  {copyLabel("problem")}
+                </button>
+              </div>
+              <pre>{parsed.problem}</pre>
+            </div>
+
+            <div className="card result-card">
+              <div className="section-header">
+                <h3>Commands</h3>
+                <button onClick={() => copyText(parsed.commands, "commands")}>
+                  {copyLabel("commands")}
+                </button>
+              </div>
+              <pre>{parsed.commands}</pre>
+            </div>
+
+            <div className="card result-card">
+              <div className="section-header">
+                <h3>Steps</h3>
+                <button onClick={() => copyText(parsed.steps, "steps")}>
+                  {copyLabel("steps")}
+                </button>
+              </div>
+              <pre>{parsed.steps}</pre>
+            </div>
+
+          </section>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+export default App;
