@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+cd ~/Documents/explain-this-screenshot-ui
+cat > src/App.jsx <<'EOF'
+import { useState } from "react";
 import "./App.css";
 
 const API_URL = "/api/screenshots";
-const STORAGE_KEY = "debug-history-v3";
 
 function normalizeResult(input) {
   if (!input) return null;
@@ -22,7 +23,7 @@ function normalizeResult(input) {
     return normalizeResult(input.result);
   }
 
-  const normalized = {
+  return {
     problem: input.problem || "",
     quickFix: input.quickFix || "",
     explanation: input.explanation || input.raw || input.message || "",
@@ -30,16 +31,6 @@ function normalizeResult(input) {
     codeFix: input.codeFix || "",
     steps: Array.isArray(input.steps) ? input.steps : [],
   };
-
-  const hasContent =
-    normalized.problem ||
-    normalized.quickFix ||
-    normalized.explanation ||
-    normalized.commandsToRun ||
-    normalized.codeFix ||
-    normalized.steps.length > 0;
-
-  return hasContent ? normalized : null;
 }
 
 function App() {
@@ -48,42 +39,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState(null);
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem(STORAGE_KEY);
-
-      if (!savedHistory) {
-        setHistory([]);
-        return;
-      }
-
-      const parsed = JSON.parse(savedHistory);
-      const safeHistory = Array.isArray(parsed)
-        ? parsed.filter((item) => normalizeResult(item?.result || item))
-        : [];
-
-      setHistory(safeHistory);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeHistory));
-    } catch (error) {
-      console.error("Failed to parse history:", error);
-      setHistory([]);
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, []);
-
-  const saveToHistory = (newItem) => {
-    const updatedHistory = [newItem, ...history].slice(0, 10);
-    setHistory(updatedHistory);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
-  };
-
-  const clearHistory = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setHistory([]);
-    setResult(null);
-  };
 
   const copyToClipboard = async (text) => {
     if (!text) return;
@@ -143,30 +98,12 @@ function App() {
       }
 
       setResult(normalized);
-
-      saveToHistory({
-        id: Date.now(),
-        fileName: passedFile ? passedFile.name : "Pasted Error Text",
-        createdAt: new Date().toLocaleString(),
-        result: normalized,
-      });
     } catch (error) {
       console.error(error);
       alert(error.message || "Failed to analyze.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLoadHistory = (item) => {
-    const loaded = normalizeResult(item?.result || item);
-
-    if (!loaded) {
-      alert("This saved item is invalid. Clear history once.");
-      return;
-    }
-
-    setResult(loaded);
   };
 
   const handlePaste = (e) => {
@@ -326,28 +263,10 @@ function App() {
             )}
           </div>
         )}
-
-        {history.length > 0 && (
-          <div className="history-card">
-            <div className="section-header">
-              <h2>Recent History</h2>
-              <button onClick={clearHistory}>Clear History</button>
-            </div>
-
-            {history.map((item) => (
-              <div className="history-item" key={item.id || item.createdAt}>
-                <div>
-                  <strong>{item.fileName || "Saved Result"}</strong>
-                  <p>{item.createdAt || "Unknown time"}</p>
-                </div>
-                <button onClick={() => handleLoadHistory(item)}>Load</button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
 export default App;
+EOF
