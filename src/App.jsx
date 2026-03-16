@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://localhost:8000/api/screenshots";
+const API_URL = "/api/screenshots";
 const STORAGE_KEY = "debug-history-v2";
 
 function normalizeResult(input) {
