@@ -1,59 +1,52 @@
 import { useState } from "react";
 
-function App() {
+export default function App() {
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const API_URL = "https://explain-this-screenshot-api.onrender.com";
+  const API_URL = "https://explain-this-screenshot-api.onrender.com/api/screenshots";
 
   const handleFileChange = (e) => {
-    const selected = e.target.files[0];
-    if (!selected) return;
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
 
-    setFile(selected);
-    setPreview(URL.createObjectURL(selected));
+    setFile(selectedFile);
+    setPreview(URL.createObjectURL(selectedFile));
     setResult("");
-    setError("");
   };
 
   const analyzeScreenshot = async () => {
     if (!file) {
-      setError("Please upload a screenshot first.");
+      alert("Upload a screenshot first");
       return;
     }
 
     setLoading(true);
-    setError("");
-    setResult("");
 
     try {
       const formData = new FormData();
-      formData.append("screenshot", file);   // IMPORTANT: backend expects "screenshot"
+      formData.append("screenshot", file);
 
-      const response = await fetch(
-        `${API_URL}/api/screenshots`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to analyze screenshot");
+        throw new Error(data.message || "Analysis failed");
       }
 
-      setResult(data.explanation || JSON.stringify(data));
-    } catch (err) {
-      console.error(err);
-      setError("Load failed");
-    } finally {
-      setLoading(false);
+      setResult(data.explanation);
+    } catch (error) {
+      console.error(error);
+      alert("Error analyzing screenshot");
     }
+
+    setLoading(false);
   };
 
   return (
@@ -85,13 +78,7 @@ function App() {
         Analyze Screenshot
       </button>
 
-      {loading && <p style={{ marginTop: "20px" }}>Analyzing screenshot...</p>}
-
-      {error && (
-        <p style={{ marginTop: "20px", color: "red" }}>
-          Error: {error}
-        </p>
-      )}
+      {loading && <p>Analyzing screenshot...</p>}
 
       {result && (
         <div style={{ marginTop: "20px" }}>
@@ -102,5 +89,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
