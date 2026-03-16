@@ -1,7 +1,36 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_URL = "/api/screenshots";
+const API_URL = "http://localhost:8000/api/screenshots";
+const STORAGE_KEY = "debug-history-v2";
+
+function normalizeResult(input) {
+  if (!input) return null;
+
+  if (typeof input === "string") {
+    return {
+      problem: "",
+      quickFix: "",
+      explanation: input,
+      commandsToRun: "",
+      codeFix: "",
+      steps: [],
+    };
+  }
+
+  if (input.result) {
+    return normalizeResult(input.result);
+  }
+
+  return {
+    problem: input.problem || "",
+    quickFix: input.quickFix || "",
+    explanation: input.explanation || input.raw || input.message || "",
+    commandsToRun: input.commandsToRun || "",
+    codeFix: input.codeFix || "",
+    steps: Array.isArray(input.steps) ? input.steps : [],
+  };
+}
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -12,20 +41,38 @@ function App() {
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem("debug-history");
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
+    const savedHistory = localStorage.getItem(STORAGE_KEY);
+
+    if (!savedHistory) {
+      setHistory([]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(savedHistory);
+      setHistory(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+      console.error("Failed to parse history:", error);
+      setHistory([]);
+      localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
 
   const saveToHistory = (newItem) => {
     const updatedHistory = [newItem, ...history].slice(0, 10);
     setHistory(updatedHistory);
-    localStorage.setItem("debug-history", JSON.stringify(updatedHistory));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
+  };
+
+  const clearHistory = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setHistory([]);
+    setResult(null);
   };
 
   const copyToClipboard = async (text) => {
     if (!text) return;
+
     try {
       await navigator.clipboard.writeText(text);
       alert("Copied");
@@ -40,7 +87,10 @@ function App() {
     setSelectedFile(file);
   };
 
-  const handleAnalyze = async (passedErrorText = errorText, passedFile = selectedFile) => {
+  const handleAnalyze = async (
+    passedErrorText = errorText,
+    passedFile = selectedFile
+  ) => {
     if (!passedFile && !passedErrorText.trim()) {
       alert("Upload a screenshot or paste error text.");
       return;
@@ -71,13 +121,14 @@ function App() {
         throw new Error(data.message || "Something went wrong");
       }
 
-      setResult(data.result);
+      const normalized = normalizeResult(data.result);
+      setResult(normalized);
 
       saveToHistory({
         id: Date.now(),
         fileName: passedFile ? passedFile.name : "Pasted Error Text",
         createdAt: new Date().toLocaleString(),
-        result: data.result,
+        result: normalized,
       });
     } catch (error) {
       console.error(error);
@@ -85,6 +136,17 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLoadHistory = (item) => {
+    const loaded = normalizeResult(item?.result || item);
+
+    if (!loaded) {
+      alert("Load failed");
+      return;
+    }
+
+    setResult(loaded);
   };
 
   const handlePaste = (e) => {
@@ -157,7 +219,11 @@ function App() {
           rows={8}
         />
 
-        <button className="analyze-btn" onClick={() => handleAnalyze()} disabled={loading}>
+        <button
+          className="analyze-btn"
+          onClick={() => handleAnalyze()}
+          disabled={loading}
+        >
           {loading ? "Analyzing..." : "Analyze Error"}
         </button>
 
@@ -167,7 +233,9 @@ function App() {
               <section>
                 <div className="section-header">
                   <h2>Problem</h2>
-                  <button onClick={() => copyToClipboard(result.problem)}>Copy</button>
+                  <button onClick={() => copyToClipboard(result.problem)}>
+                    Copy
+                  </button>
                 </div>
                 <pre>{result.problem}</pre>
               </section>
@@ -177,7 +245,9 @@ function App() {
               <section className="quick-fix-box">
                 <div className="section-header">
                   <h2>⚡ Quick Fix</h2>
-                  <button onClick={() => copyToClipboard(result.quickFix)}>Copy</button>
+                  <button onClick={() => copyToClipboard(result.quickFix)}>
+                    Copy
+                  </button>
                 </div>
                 <pre>{result.quickFix}</pre>
               </section>
@@ -187,7 +257,9 @@ function App() {
               <section>
                 <div className="section-header">
                   <h2>Explanation</h2>
-                  <button onClick={() => copyToClipboard(result.explanation)}>Copy</button>
+                  <button onClick={() => copyToClipboard(result.explanation)}>
+                    Copy
+                  </button>
                 </div>
                 <pre>{result.explanation}</pre>
               </section>
@@ -197,7 +269,9 @@ function App() {
               <section>
                 <div className="section-header">
                   <h2>Commands to Run</h2>
-                  <button onClick={() => copyToClipboard(result.commandsToRun)}>Copy</button>
+                  <button onClick={() => copyToClipboard(result.commandsToRun)}>
+                    Copy
+                  </button>
                 </div>
                 <pre>{result.commandsToRun}</pre>
               </section>
@@ -207,7 +281,9 @@ function App() {
               <section>
                 <div className="section-header">
                   <h2>Code Fix</h2>
-                  <button onClick={() => copyToClipboard(result.codeFix)}>Copy</button>
+                  <button onClick={() => copyToClipboard(result.codeFix)}>
+                    Copy
+                  </button>
                 </div>
                 <pre>{result.codeFix}</pre>
               </section>
@@ -217,7 +293,9 @@ function App() {
               <section>
                 <div className="section-header">
                   <h2>Steps</h2>
-                  <button onClick={() => copyToClipboard(result.steps.join("\n"))}>Copy</button>
+                  <button onClick={() => copyToClipboard(result.steps.join("\n"))}>
+                    Copy
+                  </button>
                 </div>
                 <ol>
                   {result.steps.map((step, index) => (
@@ -231,14 +309,18 @@ function App() {
 
         {history.length > 0 && (
           <div className="history-card">
-            <h2>Recent History</h2>
+            <div className="section-header">
+              <h2>Recent History</h2>
+              <button onClick={clearHistory}>Clear History</button>
+            </div>
+
             {history.map((item) => (
-              <div className="history-item" key={item.id}>
+              <div className="history-item" key={item.id || item.createdAt}>
                 <div>
-                  <strong>{item.fileName}</strong>
-                  <p>{item.createdAt}</p>
+                  <strong>{item.fileName || "Saved Result"}</strong>
+                  <p>{item.createdAt || "Unknown time"}</p>
                 </div>
-                <button onClick={() => setResult(item.result)}>Load</button>
+                <button onClick={() => handleLoadHistory(item)}>Load</button>
               </div>
             ))}
           </div>
