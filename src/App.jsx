@@ -1,102 +1,104 @@
 import { useState } from "react";
-import "./App.css";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 function App() {
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState("");
-  const [explanation, setExplanation] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const API_URL = "https://explain-this-screenshot-api.onrender.com";
+
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
+    const selected = e.target.files[0];
+    if (!selected) return;
 
-    if (!selectedFile) return;
-
-    setFile(selectedFile);
-    setPreview(URL.createObjectURL(selectedFile));
-    setExplanation("");
+    setFile(selected);
+    setPreview(URL.createObjectURL(selected));
+    setResult("");
     setError("");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
+  const analyzeScreenshot = async () => {
     if (!file) {
-      setError("Please select an image first.");
+      setError("Please upload a screenshot first.");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("image", file);
+    setLoading(true);
+    setError("");
+    setResult("");
 
     try {
-      setLoading(true);
-      setError("");
-      setExplanation("");
+      const formData = new FormData();
+      formData.append("screenshot", file);   // IMPORTANT: backend expects "screenshot"
 
-      const res = await fetch(`${API_URL}/api/screenshots`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        `${API_URL}/api/screenshots`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze screenshot.");
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to analyze screenshot");
       }
 
-      setExplanation(
-        data.explanation || data.result || "No explanation returned."
-      );
+      setResult(data.explanation || JSON.stringify(data));
     } catch (err) {
-      setError(err.message || "Something went wrong.");
+      console.error(err);
+      setError("Load failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="app">
-      <div className="container">
-        <h1>AI Screenshot Explainer</h1>
-        <p>Upload a screenshot and AI will explain it.</p>
+    <div style={{ maxWidth: "800px", margin: "40px auto", fontFamily: "Arial" }}>
+      <h1>AI Screenshot Explainer</h1>
+      <p>Upload a screenshot and AI will explain it.</p>
 
-        <form onSubmit={handleSubmit} className="upload-form">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
+      <input type="file" accept="image/*" onChange={handleFileChange} />
+
+      {preview && (
+        <div style={{ marginTop: "20px" }}>
+          <img
+            src={preview}
+            alt="preview"
+            style={{ maxWidth: "100%", borderRadius: "10px" }}
           />
+        </div>
+      )}
 
-          <button type="submit" disabled={loading}>
-            {loading ? "Analyzing..." : "Analyze Screenshot"}
-          </button>
-        </form>
+      <button
+        onClick={analyzeScreenshot}
+        style={{
+          marginTop: "20px",
+          padding: "10px 20px",
+          fontSize: "16px",
+          cursor: "pointer",
+        }}
+      >
+        Analyze Screenshot
+      </button>
 
-        {error && (
-          <div className="error-box">
-            <h3>Error</h3>
-            <p>{error}</p>
-          </div>
-        )}
+      {loading && <p style={{ marginTop: "20px" }}>Analyzing screenshot...</p>}
 
-        {preview && (
-          <div className="preview-box">
-            <h2>Preview</h2>
-            <img src={preview} alt="Screenshot preview" className="preview-image" />
-          </div>
-        )}
+      {error && (
+        <p style={{ marginTop: "20px", color: "red" }}>
+          Error: {error}
+        </p>
+      )}
 
-        {explanation && (
-          <div className="result-box">
-            <h2>AI Explanation</h2>
-            <p>{explanation}</p>
-          </div>
-        )}
-      </div>
+      {result && (
+        <div style={{ marginTop: "20px" }}>
+          <h2>AI Explanation</h2>
+          <p>{result}</p>
+        </div>
+      )}
     </div>
   );
 }
