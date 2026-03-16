@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/screenshots",
-      "destination": "https://explain-this-screenshot-api.onrender.com/api/screenshots"
+      "source": "/api/:path*",
+      "destination": "https://explain-this-screenshot-api.onrender.com/api/:path*"
     }
   ]
 }
