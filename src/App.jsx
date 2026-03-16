@@ -6,8 +6,6 @@ export default function App() {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const API_URL = "https://explain-this-screenshot-api.onrender.com/api/screenshots";
-
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
@@ -29,7 +27,7 @@ export default function App() {
       const formData = new FormData();
       formData.append("screenshot", file);
 
-      const response = await fetch(API_URL, {
+      const response = await fetch("/api/screenshots", {
         method: "POST",
         body: formData,
       });
@@ -44,9 +42,9 @@ export default function App() {
     } catch (error) {
       console.error(error);
       alert("Error analyzing screenshot");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
