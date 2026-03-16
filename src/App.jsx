@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 
 const API_URL = "/api/screenshots";
-const STORAGE_KEY = "debug-history-v2";
+const STORAGE_KEY = "debug-history-v3";
 
 function normalizeResult(input) {
   if (!input) return null;
@@ -22,7 +22,7 @@ function normalizeResult(input) {
     return normalizeResult(input.result);
   }
 
-  return {
+  const normalized = {
     problem: input.problem || "",
     quickFix: input.quickFix || "",
     explanation: input.explanation || input.raw || input.message || "",
@@ -30,6 +30,16 @@ function normalizeResult(input) {
     codeFix: input.codeFix || "",
     steps: Array.isArray(input.steps) ? input.steps : [],
   };
+
+  const hasContent =
+    normalized.problem ||
+    normalized.quickFix ||
+    normalized.explanation ||
+    normalized.commandsToRun ||
+    normalized.codeFix ||
+    normalized.steps.length > 0;
+
+  return hasContent ? normalized : null;
 }
 
 function App() {
@@ -41,16 +51,21 @@ function App() {
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem(STORAGE_KEY);
-
-    if (!savedHistory) {
-      setHistory([]);
-      return;
-    }
-
     try {
+      const savedHistory = localStorage.getItem(STORAGE_KEY);
+
+      if (!savedHistory) {
+        setHistory([]);
+        return;
+      }
+
       const parsed = JSON.parse(savedHistory);
-      setHistory(Array.isArray(parsed) ? parsed : []);
+      const safeHistory = Array.isArray(parsed)
+        ? parsed.filter((item) => normalizeResult(item?.result || item))
+        : [];
+
+      setHistory(safeHistory);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeHistory));
     } catch (error) {
       console.error("Failed to parse history:", error);
       setHistory([]);
@@ -122,6 +137,11 @@ function App() {
       }
 
       const normalized = normalizeResult(data.result);
+
+      if (!normalized) {
+        throw new Error("Invalid response from server");
+      }
+
       setResult(normalized);
 
       saveToHistory({
@@ -142,7 +162,7 @@ function App() {
     const loaded = normalizeResult(item?.result || item);
 
     if (!loaded) {
-      alert("Load failed");
+      alert("This saved item is invalid. Clear history once.");
       return;
     }
 
