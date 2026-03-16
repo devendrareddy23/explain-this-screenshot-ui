@@ -3,49 +3,28 @@ import { useState } from "react";
 function App() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState("");
-  const [result, setResult] = useState("");
+  const [explanation, setExplanation] = useState("");
   const [loading, setLoading] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState("");
+  const [copySuccess, setCopySuccess] = useState("");
 
-  const handleFileSelect = (selectedFile) => {
-    if (!selectedFile) return;
+  const handleFile = (selectedFile) => {
+    if (selectedFile) {
+      if (!selectedFile.type.startsWith("image/")) {
+        setError("Please upload an image file only.");
+        setFile(null);
+        setPreview("");
+        setExplanation("");
+        return;
+      }
 
-    if (!selectedFile.type.startsWith("image/")) {
-      setError("Please upload an image file only.");
-      setFile(null);
-      setPreview("");
-      setResult("");
-      return;
+      setError("");
+      setCopySuccess("");
+      setFile(selectedFile);
+      setPreview(URL.createObjectURL(selectedFile));
+      setExplanation("");
     }
-
-    setError("");
-    setFile(selectedFile);
-    setPreview(URL.createObjectURL(selectedFile));
-    setResult("");
-  };
-
-  const handleInputChange = (e) => {
-    const selectedFile = e.target.files[0];
-    handleFileSelect(selectedFile);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setDragging(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragging(false);
-
-    const droppedFile = e.dataTransfer.files[0];
-    handleFileSelect(droppedFile);
   };
 
   const handleAnalyze = async () => {
@@ -57,7 +36,8 @@ function App() {
     try {
       setLoading(true);
       setError("");
-      setResult("");
+      setExplanation("");
+      setCopySuccess("");
 
       const formData = new FormData();
       formData.append("screenshot", file);
@@ -80,11 +60,28 @@ function App() {
         throw new Error(data.message || "Failed to analyze screenshot");
       }
 
-      setResult(data.explanation || "No explanation received.");
+      setExplanation(data.explanation || "No explanation received.");
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!explanation) return;
+
+    try {
+      await navigator.clipboard.writeText(explanation);
+      setCopySuccess("Explanation copied!");
+      setTimeout(() => {
+        setCopySuccess("");
+      }, 2000);
+    } catch {
+      setCopySuccess("Copy failed. Please copy manually.");
+      setTimeout(() => {
+        setCopySuccess("");
+      }, 2000);
     }
   };
 
@@ -126,12 +123,23 @@ function App() {
         </p>
 
         <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            const droppedFile = e.dataTransfer.files[0];
+            handleFile(droppedFile);
+          }}
           style={{
-            border: dragging ? "2px dashed #38bdf8" : "2px dashed #475569",
-            backgroundColor: dragging ? "#1e293b" : "#111827",
+            border: dragActive ? "2px dashed #38bdf8" : "2px dashed #475569",
+            backgroundColor: dragActive ? "#1e293b" : "#111827",
             borderRadius: "16px",
             padding: "40px 20px",
             textAlign: "center",
@@ -139,10 +147,23 @@ function App() {
             marginBottom: "20px",
           }}
         >
-          <p style={{ fontSize: "18px", marginBottom: "15px" }}>
+          <p
+            style={{
+              fontSize: "18px",
+              marginBottom: "15px",
+            }}
+          >
             Drag & drop your screenshot here
           </p>
-          <p style={{ color: "#94a3b8", marginBottom: "20px" }}>or</p>
+
+          <p
+            style={{
+              color: "#94a3b8",
+              marginBottom: "20px",
+            }}
+          >
+            or
+          </p>
 
           <label
             htmlFor="fileUpload"
@@ -163,18 +184,31 @@ function App() {
             id="fileUpload"
             type="file"
             accept="image/*"
-            onChange={handleInputChange}
+            onChange={(e) => {
+              const selectedFile = e.target.files[0];
+              handleFile(selectedFile);
+            }}
             style={{ display: "none" }}
           />
 
           {file && (
-            <p style={{ marginTop: "18px", color: "#cbd5e1" }}>
+            <p
+              style={{
+                marginTop: "18px",
+                color: "#cbd5e1",
+              }}
+            >
               Selected: {file.name}
             </p>
           )}
         </div>
 
-        <div style={{ textAlign: "center", marginBottom: "25px" }}>
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: "25px",
+          }}
+        >
           <button
             onClick={handleAnalyze}
             disabled={loading}
@@ -229,7 +263,14 @@ function App() {
               marginBottom: "25px",
             }}
           >
-            <h2 style={{ marginBottom: "15px" }}>Preview</h2>
+            <h2
+              style={{
+                marginBottom: "15px",
+              }}
+            >
+              Preview
+            </h2>
+
             <img
               src={preview}
               alt="Screenshot preview"
@@ -242,7 +283,7 @@ function App() {
           </div>
         )}
 
-        {result && (
+        {explanation && (
           <div
             style={{
               backgroundColor: "#111827",
@@ -251,7 +292,55 @@ function App() {
               border: "1px solid #1e293b",
             }}
           >
-            <h2 style={{ marginBottom: "18px" }}>AI Explanation</h2>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "18px",
+                flexWrap: "wrap",
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                }}
+              >
+                AI Explanation
+              </h2>
+
+              <button
+                onClick={handleCopy}
+                style={{
+                  backgroundColor: "#38bdf8",
+                  color: "#0f172a",
+                  border: "none",
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Copy Explanation
+              </button>
+            </div>
+
+            {copySuccess && (
+              <div
+                style={{
+                  backgroundColor: "#052e16",
+                  color: "#bbf7d0",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  marginBottom: "14px",
+                  fontSize: "14px",
+                }}
+              >
+                {copySuccess}
+              </div>
+            )}
+
             <div
               style={{
                 backgroundColor: "#0f172a",
@@ -262,7 +351,7 @@ function App() {
                 color: "#e5e7eb",
               }}
             >
-              {result}
+              {explanation}
             </div>
           </div>
         )}
