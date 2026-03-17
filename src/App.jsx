@@ -1,5 +1,3 @@
-cd ~/Documents/explain-this-screenshot-ui
-cat > src/App.jsx <<'EOF'
 import { useState } from "react";
 import "./App.css";
 
