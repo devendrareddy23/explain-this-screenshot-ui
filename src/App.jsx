@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const API_URL = "/api/screenshots";
+const API_URL = "https://explain-this-screenshot-api.onrender.com/api/screenshots";
 
 function normalizeResult(input) {
   if (!input) return null;
