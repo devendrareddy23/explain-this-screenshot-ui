@@ -136,7 +136,8 @@ function App() {
       <div className="container">
         <h1>Fix Coding Errors from Screenshots Instantly</h1>
         <p className="subtitle">
-          Upload a screenshot or paste your error text. Get a fast developer-friendly fix.
+          Upload a screenshot or paste your error text. Get a fast
+          developer-friendly fix.
         </p>
 
         <div
@@ -248,7 +249,9 @@ function App() {
               <section>
                 <div className="section-header">
                   <h2>Steps</h2>
-                  <button onClick={() => copyToClipboard(result.steps.join("\n"))}>
+                  <button
+                    onClick={() => copyToClipboard(result.steps.join("\n"))}
+                  >
                     Copy
                   </button>
                 </div>
@@ -267,4 +270,3 @@ function App() {
 }
 
 export default App;
-EOF
