@@ -8,6 +8,7 @@ function normalizeResult(input) {
   if (!input) return null;
 
   return {
+    stack: input.stack || "",
     problem: input.problem || "",
     quickFix: input.quickFix || "",
     explanation: input.explanation || input.raw || "",
@@ -52,6 +53,7 @@ function App() {
 
   const buildFullFixText = (data) => {
     return [
+      data.stack ? `Stack:\n${data.stack}` : "",
       data.problem ? `Problem:\n${data.problem}` : "",
       data.quickFix ? `Quick Fix:\n${data.quickFix}` : "",
       data.explanation ? `Why This Happened:\n${data.explanation}` : "",
@@ -165,6 +167,21 @@ function App() {
     setResult(item.result);
   };
 
+  const stackBadgeClass = (stack) => {
+    const value = (stack || "").toLowerCase();
+
+    if (value.includes("react")) return "stack-badge react";
+    if (value.includes("node")) return "stack-badge node";
+    if (value.includes("express")) return "stack-badge express";
+    if (value.includes("mongo")) return "stack-badge mongo";
+    if (value.includes("python")) return "stack-badge python";
+    if (value.includes("sql")) return "stack-badge sql";
+    if (value.includes("docker")) return "stack-badge docker";
+    if (value.includes("git")) return "stack-badge git";
+
+    return "stack-badge general";
+  };
+
   return (
     <div className="app">
       <div className="container">
@@ -172,7 +189,7 @@ function App() {
           <h1>Fix Coding Errors Instantly</h1>
           <p className="subtitle">
             Paste your error and get a fast, developer-friendly fix with
-            commands, next actions, and prevention tips.
+            commands, next actions, prevention tips, and stack-aware guidance.
           </p>
           <p className="time-save">Save 30–60 minutes per bug.</p>
         </div>
@@ -221,6 +238,18 @@ function App() {
 
         {result && (
           <div className="result">
+            {result.stack && (
+              <section className="result-section stack-section">
+                <div className="section-header">
+                  <h2>Detected Stack</h2>
+                  <button onClick={() => copyToClipboard(result.stack)}>
+                    Copy
+                  </button>
+                </div>
+                <div className={stackBadgeClass(result.stack)}>{result.stack}</div>
+              </section>
+            )}
+
             {result.problem && (
               <section className="result-section">
                 <div className="section-header">
@@ -359,6 +388,12 @@ function App() {
                     <span>{item.createdAt}</span>
                   </div>
 
+                  {item.result.stack && (
+                    <div className={stackBadgeClass(item.result.stack)}>
+                      {item.result.stack}
+                    </div>
+                  )}
+
                   <p className="history-error">{item.errorText}</p>
 
                   <div className="history-actions">
@@ -405,7 +440,7 @@ function App() {
               <p className="price">$5/month</p>
               <ul>
                 <li>Unlimited analyses</li>
-                <li>Faster debugging workflow</li>
+                <li>Stack-aware fixes</li>
                 <li>Commands + prevention tips</li>
                 <li>Priority future features</li>
               </ul>
