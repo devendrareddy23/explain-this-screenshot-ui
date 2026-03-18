@@ -10,7 +10,7 @@ body {
 }
 
 .app-container {
-  max-width: 950px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 40px 20px;
 }
@@ -31,6 +31,7 @@ h1 {
   gap: 12px;
   justify-content: center;
   margin-bottom: 30px;
+  flex-wrap: wrap;
 }
 
 .tab-buttons button {
@@ -61,6 +62,7 @@ label {
 }
 
 input[type="file"],
+input[type="text"],
 textarea {
   width: 100%;
   margin-bottom: 12px;
@@ -99,6 +101,55 @@ button:disabled {
   border: 1px solid #334155;
 }
 
+.top-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.metric-card {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.metric-card h4 {
+  margin: 0 0 10px;
+  color: #60a5fa;
+}
+
+.big-number {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: bold;
+  background: #334155;
+}
+
+.badge.high {
+  background: #166534;
+}
+
+.badge.apply {
+  background: #1d4ed8;
+}
+
+.badge.maybe {
+  background: #92400e;
+}
+
+.badge.skip {
+  background: #991b1b;
+}
+
 .section {
   margin-bottom: 20px;
 }
@@ -120,4 +171,10 @@ pre {
 .error-text {
   color: #f87171;
   margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .top-grid {
+    grid-template-columns: 1fr;
+  }
 }

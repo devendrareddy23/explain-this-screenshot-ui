@@ -14,6 +14,8 @@ function App() {
 
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [targetRole, setTargetRole] = useState("");
+  const [locationPreference, setLocationPreference] = useState("");
   const [loadingResume, setLoadingResume] = useState(false);
   const [resumeResult, setResumeResult] = useState(null);
   const [resumeError, setResumeError] = useState("");
@@ -90,6 +92,8 @@ function App() {
         body: JSON.stringify({
           resumeText,
           jobDescription,
+          targetRole,
+          locationPreference,
         }),
       });
 
@@ -107,11 +111,22 @@ function App() {
     }
   };
 
+  const priorityClass = (priority) => {
+    const value = (priority || "").toLowerCase();
+
+    if (value.includes("high")) return "badge high";
+    if (value.includes("apply")) return "badge apply";
+    if (value.includes("maybe")) return "badge maybe";
+    if (value.includes("skip")) return "badge skip";
+
+    return "badge";
+  };
+
   return (
     <div className="app-container">
       <h1>Developer Career Toolkit</h1>
       <p className="subtitle">
-        Fix coding errors and tailor your resume for every job in minutes.
+        Fix coding errors, match jobs faster, and tailor your resume in minutes.
       </p>
 
       <div className="tab-buttons">
@@ -125,7 +140,7 @@ function App() {
           className={activeTab === "resume" ? "active" : ""}
           onClick={() => setActiveTab("resume")}
         >
-          Resume Tailor
+          Job Match Dashboard
         </button>
       </div>
 
@@ -168,9 +183,25 @@ function App() {
 
       {activeTab === "resume" && (
         <div className="tool-card">
-          <h2>Tailor Resume for Job Description</h2>
+          <h2>Job Match Dashboard</h2>
 
           <form onSubmit={handleTailorResume}>
+            <label>Target Role</label>
+            <input
+              type="text"
+              placeholder="Example: Backend Engineer"
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+            />
+
+            <label>Location Preference</label>
+            <input
+              type="text"
+              placeholder="Example: Remote worldwide / India / Europe"
+              value={locationPreference}
+              onChange={(e) => setLocationPreference(e.target.value)}
+            />
+
             <label>Resume Text</label>
             <textarea
               rows="10"
@@ -192,7 +223,7 @@ function App() {
             />
 
             <button type="submit" disabled={loadingResume}>
-              {loadingResume ? "Tailoring..." : "Tailor Resume"}
+              {loadingResume ? "Evaluating..." : "Evaluate Job Match"}
             </button>
           </form>
 
@@ -200,16 +231,30 @@ function App() {
 
           {resumeResult && (
             <div className="result-card">
-              <h3>ATS Match Report</h3>
+              <h3>Job Match Report</h3>
+
+              <div className="top-grid">
+                <div className="metric-card">
+                  <h4>Match Score</h4>
+                  <p className="big-number">{resumeResult.matchScore || "N/A"}</p>
+                </div>
+
+                <div className="metric-card">
+                  <h4>Priority</h4>
+                  <span className={priorityClass(resumeResult.priority)}>
+                    {resumeResult.priority || "N/A"}
+                  </span>
+                </div>
+              </div>
 
               <div className="section">
-                <h4>Match Score</h4>
-                <p>{resumeResult.matchScore || "N/A"}</p>
+                <h4>Decision</h4>
+                <pre>{resumeResult.decision || "N/A"}</pre>
               </div>
 
               <div className="section">
                 <h4>Suggested Job Title</h4>
-                <p>{resumeResult.suggestedJobTitle || "N/A"}</p>
+                <pre>{resumeResult.suggestedJobTitle || "N/A"}</pre>
               </div>
 
               <div className="section">
@@ -218,6 +263,16 @@ function App() {
                 <button onClick={() => copyText(resumeResult.professionalSummary)}>
                   Copy Summary
                 </button>
+              </div>
+
+              <div className="section">
+                <h4>Strengths</h4>
+                <pre>{resumeResult.strengths || "N/A"}</pre>
+              </div>
+
+              <div className="section">
+                <h4>Gaps</h4>
+                <pre>{resumeResult.gaps || "N/A"}</pre>
               </div>
 
               <div className="section">
@@ -244,6 +299,11 @@ function App() {
               <div className="section">
                 <h4>Missing Keywords</h4>
                 <pre>{resumeResult.missingKeywords || "N/A"}</pre>
+              </div>
+
+              <div className="section">
+                <h4>Recommended Improvements</h4>
+                <pre>{resumeResult.recommendedImprovements || "N/A"}</pre>
               </div>
 
               <div className="section">
