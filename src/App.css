@@ -202,6 +202,79 @@ pre {
   cursor: pointer;
 }
 
+.history-section {
+  margin-top: 40px;
+  padding: 20px;
+  background: #fbfbfd;
+  border: 1px solid #ececf2;
+  border-radius: 16px;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.history-header h2 {
+  margin: 0;
+}
+
+.history-empty {
+  margin: 0;
+  color: #666;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.history-card {
+  border: 1px solid #e6e6ee;
+  border-radius: 12px;
+  padding: 14px;
+  background: white;
+}
+
+.history-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.history-top span {
+  color: #666;
+  font-size: 13px;
+}
+
+.history-error {
+  margin: 0 0 12px 0;
+  color: #333;
+  word-break: break-word;
+}
+
+.history-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.history-btn {
+  border: none;
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
 .pricing-section {
   margin-top: 50px;
   text-align: center;
@@ -271,7 +344,9 @@ pre {
     font-size: 1.6rem;
   }
 
-  .section-header {
+  .section-header,
+  .history-header,
+  .history-top {
     align-items: flex-start;
   }
 }

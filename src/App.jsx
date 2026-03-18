@@ -25,12 +25,18 @@ function App() {
   const [result, setResult] = useState(null);
   const [usageCount, setUsageCount] = useState(0);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [history, setHistory] = useState([]);
 
   const timerRef = useRef(null);
 
   useEffect(() => {
     const savedUsage = Number(localStorage.getItem("free_usage_count") || 0);
     setUsageCount(savedUsage);
+
+    const savedHistory = JSON.parse(
+      localStorage.getItem("fix_history") || "[]"
+    );
+    setHistory(Array.isArray(savedHistory) ? savedHistory : []);
   }, []);
 
   const copyToClipboard = async (text) => {
@@ -42,6 +48,34 @@ function App() {
     } catch (error) {
       alert("Copy failed");
     }
+  };
+
+  const buildFullFixText = (data) => {
+    return [
+      data.problem ? `Problem:\n${data.problem}` : "",
+      data.quickFix ? `Quick Fix:\n${data.quickFix}` : "",
+      data.explanation ? `Why This Happened:\n${data.explanation}` : "",
+      data.commandsToRun ? `Run This:\n${data.commandsToRun}` : "",
+      data.codeFix ? `Code Fix:\n${data.codeFix}` : "",
+      data.steps.length > 0 ? `Steps:\n${data.steps.join("\n")}` : "",
+      data.nextBestAction ? `Next Best Action:\n${data.nextBestAction}` : "",
+      data.preventThis ? `Prevent This:\n${data.preventThis}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  };
+
+  const saveToHistory = (inputText, normalizedResult) => {
+    const entry = {
+      id: Date.now(),
+      errorText: inputText,
+      createdAt: new Date().toLocaleString(),
+      result: normalizedResult,
+    };
+
+    const updatedHistory = [entry, ...history].slice(0, 10);
+    setHistory(updatedHistory);
+    localStorage.setItem("fix_history", JSON.stringify(updatedHistory));
   };
 
   const handleAnalyze = async (textToAnalyze = errorText) => {
@@ -78,6 +112,7 @@ function App() {
 
       const normalized = normalizeResult(data.result);
       setResult(normalized);
+      saveToHistory(trimmed, normalized);
 
       const newUsage = currentUsage + 1;
       localStorage.setItem("free_usage_count", String(newUsage));
@@ -117,6 +152,17 @@ function App() {
     setUsageCount(0);
     setShowUpgrade(false);
     alert("Free usage reset locally for testing.");
+  };
+
+  const clearHistory = () => {
+    localStorage.removeItem("fix_history");
+    setHistory([]);
+    alert("History cleared");
+  };
+
+  const loadHistoryItem = (item) => {
+    setErrorText(item.errorText);
+    setResult(item.result);
   };
 
   return (
@@ -284,38 +330,56 @@ function App() {
             <div className="copy-all-wrap">
               <button
                 className="copy-all-btn"
-                onClick={() =>
-                  copyToClipboard(
-                    [
-                      result.problem ? `Problem:\n${result.problem}` : "",
-                      result.quickFix ? `Quick Fix:\n${result.quickFix}` : "",
-                      result.explanation
-                        ? `Why This Happened:\n${result.explanation}`
-                        : "",
-                      result.commandsToRun
-                        ? `Run This:\n${result.commandsToRun}`
-                        : "",
-                      result.codeFix ? `Code Fix:\n${result.codeFix}` : "",
-                      result.steps.length > 0
-                        ? `Steps:\n${result.steps.join("\n")}`
-                        : "",
-                      result.nextBestAction
-                        ? `Next Best Action:\n${result.nextBestAction}`
-                        : "",
-                      result.preventThis
-                        ? `Prevent This:\n${result.preventThis}`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join("\n\n")
-                  )
-                }
+                onClick={() => copyToClipboard(buildFullFixText(result))}
               >
                 Copy Full Fix
               </button>
             </div>
           </div>
         )}
+
+        <div className="history-section">
+          <div className="history-header">
+            <h2>Recent Fix History</h2>
+            {history.length > 0 && (
+              <button className="small-btn" onClick={clearHistory}>
+                Clear History
+              </button>
+            )}
+          </div>
+
+          {history.length === 0 ? (
+            <p className="history-empty">No previous fixes yet.</p>
+          ) : (
+            <div className="history-list">
+              {history.map((item) => (
+                <div className="history-card" key={item.id}>
+                  <div className="history-top">
+                    <strong>{item.result.problem || "Previous Fix"}</strong>
+                    <span>{item.createdAt}</span>
+                  </div>
+
+                  <p className="history-error">{item.errorText}</p>
+
+                  <div className="history-actions">
+                    <button
+                      className="history-btn"
+                      onClick={() => loadHistoryItem(item)}
+                    >
+                      Open Fix
+                    </button>
+                    <button
+                      className="history-btn"
+                      onClick={() => copyToClipboard(buildFullFixText(item.result))}
+                    >
+                      Copy Fix
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="pricing-section">
           <h2>Pricing</h2>
@@ -331,6 +395,7 @@ function App() {
                 <li>3 analyses</li>
                 <li>Quick fixes</li>
                 <li>Basic debugging help</li>
+                <li>Recent local history</li>
               </ul>
               <button className="pricing-btn">Start Free</button>
             </div>
