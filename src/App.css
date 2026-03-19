@@ -61,11 +61,9 @@ label {
   font-weight: bold;
 }
 
-input[type="file"],
 input[type="text"],
 input[type="number"],
-textarea,
-select {
+textarea {
   width: 100%;
   margin-bottom: 12px;
   padding: 12px;
@@ -103,19 +101,11 @@ button:disabled {
   border: 1px solid #334155;
 }
 
-.top-grid,
 .summary-grid {
   display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 20px;
-}
-
-.top-grid {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.summary-grid {
-  grid-template-columns: repeat(3, 1fr);
 }
 
 .metric-card {
@@ -136,32 +126,6 @@ button:disabled {
   margin: 0;
 }
 
-.badge,
-.status-pill,
-.meta-pill {
-  display: inline-block;
-  padding: 10px 14px;
-  border-radius: 999px;
-  font-weight: bold;
-  background: #334155;
-}
-
-.badge.high {
-  background: #166534;
-}
-
-.badge.apply {
-  background: #1d4ed8;
-}
-
-.badge.maybe {
-  background: #92400e;
-}
-
-.badge.skip {
-  background: #991b1b;
-}
-
 .section {
   margin-bottom: 20px;
 }
@@ -171,21 +135,11 @@ button:disabled {
   color: #60a5fa;
 }
 
-pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  background: #020617;
-  padding: 14px;
-  border-radius: 10px;
-  border: 1px solid #1e293b;
-}
-
 .error-text {
   color: #f87171;
   margin-top: 14px;
 }
 
-.toggle-row,
 .actions-row {
   display: flex;
   gap: 16px;
@@ -193,16 +147,10 @@ pre {
   margin-top: 10px;
 }
 
-.toggle-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: normal;
-}
-
-.toggle-item input {
-  width: auto;
-  margin: 0;
+.divider {
+  border: 0;
+  border-top: 1px solid #334155;
+  margin: 24px 0;
 }
 
 .job-card {
@@ -226,6 +174,11 @@ pre {
 
 .job-company {
   margin: 0;
+  color: #cbd5e1;
+}
+
+.job-source {
+  margin: 6px 0 0;
   color: #94a3b8;
 }
 
@@ -240,6 +193,14 @@ pre {
   gap: 10px;
   flex-wrap: wrap;
   margin: 14px 0;
+}
+
+.status-pill,
+.meta-pill {
+  display: inline-block;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: bold;
 }
 
 .status-pill.auto {
@@ -260,6 +221,12 @@ pre {
 
 .job-reason {
   color: #cbd5e1;
+  margin-bottom: 10px;
+}
+
+.job-description {
+  color: #94a3b8;
+  line-height: 1.5;
 }
 
 .job-actions a {
@@ -274,7 +241,6 @@ pre {
 }
 
 @media (max-width: 768px) {
-  .top-grid,
   .summary-grid {
     grid-template-columns: 1fr;
   }
