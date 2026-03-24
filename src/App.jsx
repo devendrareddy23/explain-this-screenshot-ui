@@ -7,6 +7,15 @@ const API_BASE =
 function App() {
   const [activeTab, setActiveTab] = useState("fix-errors");
 
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
+
+  const [authMode, setAuthMode] = useState("login");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [errorText, setErrorText] = useState("");
   const [fixResult, setFixResult] = useState("");
   const [fixLoading, setFixLoading] = useState(false);
@@ -17,8 +26,17 @@ function App() {
   const [resumeLoading, setResumeLoading] = useState(false);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem("user");
     const savedResume = localStorage.getItem("saved_resume_text");
     const savedFixHistory = localStorage.getItem("fix_history");
+
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Failed to parse stored user:", error);
+      }
+    }
 
     if (savedResume) {
       setResumeText(savedResume);
@@ -28,6 +46,9 @@ function App() {
       localStorage.setItem("fix_history", JSON.stringify([]));
     }
   }, []);
+
+  const isPro = user?.plan === "pro" || user?.plan === "auto";
+  const isAuto = user?.plan === "auto";
 
   const parsedResumeSections = useMemo(() => {
     if (!resumeResult) return [];
@@ -120,9 +141,88 @@ function App() {
     alert("Saved resume cleared.");
   };
 
+  const handleAuth = async () => {
+    if (!authEmail.trim()) {
+      alert("Enter email.");
+      return;
+    }
+
+    if (!authPassword.trim()) {
+      alert("Enter password.");
+      return;
+    }
+
+    if (authMode === "register" && !authName.trim()) {
+      alert("Enter name.");
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+
+      const endpoint =
+        authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+
+      const payload =
+        authMode === "login"
+          ? {
+              email: authEmail,
+              password: authPassword,
+            }
+          : {
+              name: authName,
+              email: authEmail,
+              password: authPassword,
+            };
+
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || `${authMode} failed.`);
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      setToken(data.token);
+      setUser(data.user);
+
+      setAuthName("");
+      setAuthEmail("");
+      setAuthPassword("");
+    } catch (error) {
+      console.error("Auth failed:", error);
+      alert(error.message || "Authentication failed.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    setToken("");
+    setFixResult("");
+    setResumeResult("");
+  };
+
   const handleAnalyzeError = async () => {
     if (!errorText.trim()) {
       alert("Paste an error first.");
+      return;
+    }
+
+    if (!token) {
+      alert("Login required.");
       return;
     }
 
@@ -134,6 +234,7 @@ function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           errorText,
@@ -168,6 +269,16 @@ function App() {
       return;
     }
 
+    if (!token) {
+      alert("Login required.");
+      return;
+    }
+
+    if (!isPro) {
+      alert("Upgrade to Pro to use Resume Tailor.");
+      return;
+    }
+
     try {
       setResumeLoading(true);
       setResumeResult("");
@@ -176,6 +287,7 @@ function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           resumeText,
@@ -198,16 +310,169 @@ function App() {
     }
   };
 
+  const startCheckout = async (plan) => {
+    if (!token) {
+      alert("Login required.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/billing/create-checkout-session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ plan }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !data.url) {
+        throw new Error(data.message || "Failed to create checkout session.");
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error("Checkout failed:", error);
+      alert(error.message || "Checkout failed.");
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="app-shell">
+        <div className="hero-card">
+          <p className="eyebrow">HIREFLOW AI</p>
+          <h1>Login to your job search workspace.</h1>
+          <p className="hero-text">
+            Resume tailoring, error fixing, premium access, and account-based
+            job workflow in one place.
+          </p>
+
+          <div className="tab-row">
+            <button
+              className={authMode === "login" ? "tab active" : "tab"}
+              onClick={() => setAuthMode("login")}
+            >
+              Login
+            </button>
+            <button
+              className={authMode === "register" ? "tab active" : "tab"}
+              onClick={() => setAuthMode("register")}
+            >
+              Register
+            </button>
+          </div>
+        </div>
+
+        <div className="tool-card">
+          <h2>{authMode === "login" ? "Welcome back" : "Create account"}</h2>
+
+          {authMode === "register" && (
+            <div className="field-group">
+              <label>Name</label>
+              <input
+                className="text-input"
+                type="text"
+                value={authName}
+                onChange={(e) => setAuthName(e.target.value)}
+                placeholder="Enter your name"
+              />
+            </div>
+          )}
+
+          <div className="field-group">
+            <label>Email</label>
+            <input
+              className="text-input"
+              type="email"
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              placeholder="Enter your email"
+            />
+          </div>
+
+          <div className="field-group">
+            <label>Password</label>
+            <input
+              className="text-input"
+              type="password"
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              placeholder="Enter your password"
+            />
+          </div>
+
+          <button
+            className="primary-button"
+            onClick={handleAuth}
+            disabled={authLoading}
+          >
+            {authLoading
+              ? authMode === "login"
+                ? "Logging in..."
+                : "Creating account..."
+              : authMode === "login"
+              ? "Login"
+              : "Register"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <div className="hero-card">
-        <p className="eyebrow">DEVELOPER CAREER TOOLKIT</p>
-        <h1>Fix coding errors and tailor your resume fast.</h1>
-        <p className="hero-text">
-          One tool for debugging screenshots and pasted errors. One tool for
-          matching your resume to a job description without rewriting everything
-          manually.
-        </p>
+        <div className="top-bar">
+          <div>
+            <p className="eyebrow">HIREFLOW AI</p>
+            <h1>Fix coding errors and tailor your resume fast.</h1>
+            <p className="hero-text">
+              Logged in as <strong>{user.email}</strong> · Plan{" "}
+              <strong>{user.plan || "free"}</strong>
+            </p>
+          </div>
+
+          <button className="secondary-button" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+
+        <div className="status-grid">
+          <div className="status-card">
+            <span className="status-label">Current plan</span>
+            <strong>{isAuto ? "Auto" : isPro ? "Pro" : "Free"}</strong>
+          </div>
+
+          <div className="status-card">
+            <span className="status-label">Account status</span>
+            <strong>{isPro ? "Active" : "Free tier"}</strong>
+          </div>
+
+          <div className="status-card">
+            <span className="status-label">Resume Tailor</span>
+            <strong>{isPro ? "Unlocked" : "Upgrade required"}</strong>
+          </div>
+
+          <div className="status-card">
+            <span className="status-label">Auto Apply</span>
+            <strong>{isAuto ? "Unlocked" : "Not enabled"}</strong>
+          </div>
+        </div>
+
+        <div className="billing-row">
+          <button className="primary-button" onClick={() => startCheckout("pro")}>
+            Upgrade to Pro
+          </button>
+          <button className="secondary-button" onClick={() => startCheckout("auto")}>
+            Get Auto Apply
+          </button>
+        </div>
 
         <div className="tab-row">
           <button
@@ -233,17 +498,19 @@ function App() {
             Paste the raw error. The backend will return a structured fix.
           </p>
 
-          <label className="label">Paste Error</label>
-          <textarea
-            className="textarea large"
-            placeholder="Paste your error, stack trace, terminal issue, or screenshot-extracted text here..."
-            value={errorText}
-            onChange={(e) => setErrorText(e.target.value)}
-          />
+          <div className="field-group">
+            <label>Paste Error</label>
+            <textarea
+              className="big-textarea"
+              value={errorText}
+              onChange={(e) => setErrorText(e.target.value)}
+              placeholder="Paste your error, stack trace, terminal issue, or screenshot-extracted text here..."
+            />
+          </div>
 
           <div className="button-row">
             <button
-              className="primary-btn"
+              className="primary-button"
               onClick={handleAnalyzeError}
               disabled={fixLoading}
             >
@@ -251,7 +518,7 @@ function App() {
             </button>
 
             <button
-              className="secondary-btn"
+              className="secondary-button"
               onClick={() => {
                 setErrorText("");
                 setFixResult("");
@@ -264,12 +531,12 @@ function App() {
           {fixResult && (
             <div className="result-card">
               <div className="result-header">
-                <h3>AI Fix Result</h3>
+                <h3>Structured Fix</h3>
                 <button
-                  className="copy-btn"
+                  className="secondary-button"
                   onClick={() => handleCopy(fixResult, "Fix copied")}
                 >
-                  Copy Fix
+                  Copy
                 </button>
               </div>
 
@@ -283,88 +550,75 @@ function App() {
         <div className="tool-card">
           <h2>Resume Tailor</h2>
           <p className="section-text">
-            Save your base resume once, paste a job description, and get a more
-            targeted version plus recruiter-ready output.
+            Match your resume to a job description without rewriting everything
+            manually.
           </p>
 
-          <label className="label">Your Resume</label>
-          <textarea
-            className="textarea xl"
-            placeholder="Paste your full resume text here..."
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-          />
+          {!isPro && (
+            <div className="warning-card">
+              Resume Tailor is locked for free users. Upgrade to Pro to unlock
+              this section.
+            </div>
+          )}
+
+          <div className="field-group">
+            <label>Saved Resume</label>
+            <textarea
+              className="big-textarea"
+              value={resumeText}
+              onChange={(e) => setResumeText(e.target.value)}
+              placeholder="Paste your full resume here..."
+            />
+          </div>
 
           <div className="button-row">
-            <button className="secondary-btn" onClick={handleSaveResume}>
+            <button className="secondary-button" onClick={handleSaveResume}>
               Save Resume
             </button>
-
-            <button className="secondary-btn" onClick={handleClearResume}>
+            <button className="secondary-button" onClick={handleClearResume}>
               Clear Saved Resume
             </button>
           </div>
 
-          <label className="label">Job Description</label>
-          <textarea
-            className="textarea xl"
-            placeholder="Paste the target job description here..."
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-          />
+          <div className="field-group">
+            <label>Job Description</label>
+            <textarea
+              className="big-textarea"
+              value={jobDescription}
+              onChange={(e) => setJobDescription(e.target.value)}
+              placeholder="Paste the target job description here..."
+            />
+          </div>
 
           <div className="button-row">
             <button
-              className="primary-btn"
+              className="primary-button"
               onClick={handleTailorResume}
-              disabled={resumeLoading}
+              disabled={resumeLoading || !isPro}
             >
               {resumeLoading ? "Tailoring..." : "Tailor Resume"}
             </button>
-
-            <button
-              className="secondary-btn"
-              onClick={() => {
-                setJobDescription("");
-                setResumeResult("");
-              }}
-            >
-              Clear JD
-            </button>
           </div>
 
-          {resumeResult && (
-            <div className="result-card">
-              <div className="result-header">
-                <h3>Tailored Resume Result</h3>
-                <button
-                  className="copy-btn"
-                  onClick={() =>
-                    handleCopy(resumeResult, "Resume result copied")
-                  }
-                >
-                  Copy Result
-                </button>
-              </div>
-
-              <div className="resume-sections">
-                {parsedResumeSections.map((section, index) => (
-                  <div className="resume-section" key={`${section.title}-${index}`}>
-                    <div className="resume-section-header">
-                      <h4>{section.title}</h4>
-                      <button
-                        className="copy-btn small"
-                        onClick={() =>
-                          handleCopy(section.content, `${section.title} copied`)
-                        }
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <pre className="result-pre">{section.content}</pre>
+          {parsedResumeSections.length > 0 && (
+            <div className="result-stack">
+              {parsedResumeSections.map((section) => (
+                <div className="result-card" key={section.title}>
+                  <div className="result-header">
+                    <h3>{section.title}</h3>
+                    <button
+                      className="secondary-button"
+                      onClick={() =>
+                        handleCopy(section.content, `${section.title} copied`)
+                      }
+                    >
+                      Copy
+                    </button>
                   </div>
-                ))}
-              </div>
+
+                  <pre className="result-pre">{section.content}</pre>
+                </div>
+              ))}
             </div>
           )}
         </div>
