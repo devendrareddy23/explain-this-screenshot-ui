@@ -18,6 +18,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [loginName, setLoginName] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
@@ -358,57 +359,15 @@ function App() {
     }
   };
 
-  const applyJob = async (job) => {
-    try {
-      setLoading(true);
-      setMessage(`Applying to ${job.title || "job"}...`);
-
-      const payload = {
-        profileEmail: user?.email || "",
-        source: "manual",
-        minimumScore: job?.score || 60,
-      };
-
-      await apiRequest(
-        `${API_BASE}/api/india-auto-hunt/apply-all`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        },
-        false
-      );
-
-      setJobs((prev) =>
-        prev.map((item) =>
-          item === job ? { ...item, applied: true } : item
-        )
-      );
-
-      setMessage(`Applied to ${job.title || "job"}.`);
-    } catch (error) {
-      setMessage(error.message || "Apply failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const skipJob = (job) => {
-    setJobs((prev) => prev.filter((item) => item !== job));
-    setMessage(`Skipped ${job.title || "job"}.`);
-  };
-
   const handleUpgradePro = async () => {
     try {
       setLoading(true);
       setMessage("");
 
-      const data = await apiRequest(
-        `${API_BASE}/api/billing/create-checkout-session`,
-        {
-          method: "POST",
-          body: JSON.stringify({ plan: "pro" }),
-        }
-      );
+      const data = await apiRequest(`${API_BASE}/api/billing/create-checkout-session`, {
+        method: "POST",
+        body: JSON.stringify({ plan: "pro" }),
+      });
 
       if (data.url) {
         window.location.href = data.url;
@@ -428,13 +387,10 @@ function App() {
       setLoading(true);
       setMessage("");
 
-      const data = await apiRequest(
-        `${API_BASE}/api/billing/create-checkout-session`,
-        {
-          method: "POST",
-          body: JSON.stringify({ plan: "auto_apply" }),
-        }
-      );
+      const data = await apiRequest(`${API_BASE}/api/billing/create-checkout-session`, {
+        method: "POST",
+        body: JSON.stringify({ plan: "auto_apply" }),
+      });
 
       if (data.url) {
         window.location.href = data.url;
@@ -881,50 +837,27 @@ function App() {
                     key={job._id || job.jobId || index}
                     style={styles.jobCard}
                   >
-                    <h3 style={styles.jobTitle}>
-                      {job.title || "Untitled Role"}
-                    </h3>
-
+                    <h3 style={styles.jobTitle}>{job.title || "Untitled Role"}</h3>
                     <p style={styles.jobMeta}>
                       <strong>Company:</strong> {job.company || "Unknown"}
                     </p>
-
                     <p style={styles.jobMeta}>
                       <strong>Location:</strong> {job.location || "Not provided"}
                     </p>
-
                     <p style={styles.jobMeta}>
                       <strong>Score:</strong> {job.score ?? "N/A"}
                     </p>
 
-                    <div style={styles.jobActions}>
-                      <button
-                        onClick={() => applyJob(job)}
-                        style={styles.primaryButton}
-                        disabled={loading || job.applied}
+                    {job.redirect_url || job.url ? (
+                      <a
+                        href={job.redirect_url || job.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={styles.jobLink}
                       >
-                        {job.applied ? "Applied" : "Apply"}
-                      </button>
-
-                      <button
-                        onClick={() => skipJob(job)}
-                        style={styles.secondaryButton}
-                        disabled={loading}
-                      >
-                        Skip
-                      </button>
-
-                      {job.redirect_url || job.url ? (
-                        <a
-                          href={job.redirect_url || job.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={styles.jobLinkButton}
-                        >
-                          Open
-                        </a>
-                      ) : null}
-                    </div>
+                        Open Job
+                      </a>
+                    ) : null}
 
                     {job.description ? (
                       <p style={styles.jobDescription}>
@@ -1083,10 +1016,6 @@ const styles = {
     cursor: "pointer",
     background: "linear-gradient(90deg, #41e2ff, #72ff9b)",
     color: "#03235e",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
   },
   primaryButtonDisabled: {
     border: "none",
@@ -1105,10 +1034,6 @@ const styles = {
     cursor: "pointer",
     background: "#8f9fc6",
     color: "#ffffff",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
   },
   messageBox: {
     background: "rgba(255,255,255,0.12)",
@@ -1207,13 +1132,6 @@ const styles = {
     margin: "6px 0",
     opacity: 0.95,
   },
-  jobActions: {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
-    marginTop: "12px",
-    marginBottom: "10px",
-  },
   jobDescription: {
     marginTop: "12px",
     opacity: 0.85,
@@ -1225,17 +1143,6 @@ const styles = {
     color: "#7be7ff",
     fontWeight: "700",
     textDecoration: "none",
-  },
-  jobLinkButton: {
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "700",
-    background: "#8f9fc6",
-    color: "#ffffff",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
   },
 };
 
