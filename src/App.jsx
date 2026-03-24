@@ -1,163 +1,161 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import "./App.css";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user")) || null;
-    } catch {
-      return null;
-    }
-  });
-
+  const [user, setUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
   const [authMode, setAuthMode] = useState("login");
   const [authLoading, setAuthLoading] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("fix-errors");
 
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    password: "",
+  });
 
-  const [registerName, setRegisterName] = useState("");
-  const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerForm, setRegisterForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
 
-  const [activeTab, setActiveTab] = useState("fix");
+  const [fixErrorsForm, setFixErrorsForm] = useState({
+    errorText: "",
+  });
+  const [fixErrorsLoading, setFixErrorsLoading] = useState(false);
+  const [fixErrorsResult, setFixErrorsResult] = useState("");
 
-  const [errorText, setErrorText] = useState("");
-  const [fixResult, setFixResult] = useState("");
-
-  const [resumeText, setResumeText] = useState(
-    localStorage.getItem("savedResume") || ""
-  );
-  const [jobDescription, setJobDescription] = useState("");
+  const [resumeForm, setResumeForm] = useState({
+    resumeText: "",
+    jobDescription: "",
+  });
+  const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeResult, setResumeResult] = useState("");
 
-  const [coverResumeText, setCoverResumeText] = useState(
-    localStorage.getItem("savedResume") || ""
-  );
-  const [coverJobDescription, setCoverJobDescription] = useState("");
+  const [coverLetterForm, setCoverLetterForm] = useState({
+    resumeText: "",
+    jobDescription: "",
+    companyName: "",
+    roleTitle: "",
+  });
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false);
   const [coverLetterResult, setCoverLetterResult] = useState("");
 
-  const [jobSearch, setJobSearch] = useState("Node.js Backend Engineer");
-  const [minimumScore, setMinimumScore] = useState(70);
-  const [jobs, setJobs] = useState([]);
+  const isLoggedIn = !!token;
+  const isPro = user?.plan === "pro";
 
-  const currentPlan = user?.plan || "free";
-  const isPro = currentPlan === "pro" || currentPlan === "auto_apply";
-  const autoApplyEnabled = currentPlan === "auto_apply";
-
-  useEffect(() => {
-    if (resumeText) {
-      localStorage.setItem("savedResume", resumeText);
-    }
-  }, [resumeText]);
-
-  useEffect(() => {
-    if (coverResumeText) {
-      localStorage.setItem("savedResume", coverResumeText);
-    }
-  }, [coverResumeText]);
-
-  const saveAuth = (authToken, authUser) => {
-    localStorage.setItem("token", authToken);
-    localStorage.setItem("user", JSON.stringify(authUser));
-    setToken(authToken);
-    setUser(authUser);
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setToken("");
-    setUser(null);
-    setMessage("Logged out.");
-  };
-
-  const copyText = async (value) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      setMessage("Copied.");
-    } catch {
-      setMessage("Copy failed.");
-    }
-  };
-
-  const saveResume = () => {
-    localStorage.setItem("savedResume", resumeText);
-    setCoverResumeText(resumeText);
-    setMessage("Resume saved locally.");
-  };
-
-  const clearSavedResume = () => {
-    localStorage.removeItem("savedResume");
-    setResumeText("");
-    setCoverResumeText("");
-    setMessage("Saved resume cleared.");
-  };
-
-  const apiRequest = async (url, options = {}, needsAuth = true) => {
-    const headers = {
-      ...(options.headers || {}),
+  const authHeaders = useMemo(() => {
+    if (!token) return { "Content-Type": "application/json" };
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     };
+  }, [token]);
 
-    if (!(options.body instanceof FormData)) {
-      headers["Content-Type"] = "application/json";
+  useEffect(() => {
+    const savedResumeText = localStorage.getItem("savedResumeText") || "";
+    if (savedResumeText) {
+      setResumeForm((prev) => ({ ...prev, resumeText: savedResumeText }));
+      setCoverLetterForm((prev) => ({ ...prev, resumeText: savedResumeText }));
     }
+  }, []);
 
-    if (needsAuth && token) {
-      headers.Authorization = `Bearer ${token}`;
+  useEffect(() => {
+    if (resumeForm.resumeText) {
+      localStorage.setItem("savedResumeText", resumeForm.resumeText);
     }
+  }, [resumeForm.resumeText]);
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || "Request failed.");
-    }
-
-    return data;
-  };
-
-  const handleLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      setMessage("Enter email and password.");
+  useEffect(() => {
+    if (!token) {
+      setUser(null);
+      setLoadingUser(false);
       return;
     }
 
+    let ignore = false;
+
+    const fetchMe = async () => {
+      setLoadingUser(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || "Failed to load user.");
+        }
+
+        if (!ignore) {
+          setUser(data.user);
+          if (data.user?.savedResumeText) {
+            setResumeForm((prev) => ({
+              ...prev,
+              resumeText: prev.resumeText || data.user.savedResumeText,
+            }));
+            setCoverLetterForm((prev) => ({
+              ...prev,
+              resumeText: prev.resumeText || data.user.savedResumeText,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Fetch /api/auth/me error:", error.message);
+        localStorage.removeItem("token");
+        if (!ignore) {
+          setToken("");
+          setUser(null);
+          setMessage("Session expired. Please login again.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingUser(false);
+        }
+      }
+    };
+
+    fetchMe();
+
+    return () => {
+      ignore = true;
+    };
+  }, [token]);
+
+  const clearMessage = () => setMessage("");
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    clearMessage();
+    setAuthLoading(true);
+
     try {
-      setAuthLoading(true);
-      setMessage("");
-
-      const data = await apiRequest(
-        `${API_BASE}/api/auth/login`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            email: loginEmail,
-            password: loginPassword,
-          }),
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        false
-      );
+        body: JSON.stringify(loginForm),
+      });
 
-      const authToken = data.token;
-      const authUser = data.user;
+      const data = await res.json();
 
-      if (!authToken || !authUser) {
-        throw new Error("Login response missing token or user.");
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Login failed.");
       }
 
-      saveAuth(authToken, authUser);
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
+      setUser(data.user || null);
       setMessage("Login successful.");
+      setLoginForm({ email: "", password: "" });
     } catch (error) {
       setMessage(error.message || "Login failed.");
     } finally {
@@ -165,42 +163,34 @@ function App() {
     }
   };
 
-  const handleRegister = async () => {
-    if (
-      !registerName.trim() ||
-      !registerEmail.trim() ||
-      !registerPassword.trim()
-    ) {
-      setMessage("Enter name, email, and password.");
-      return;
-    }
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    clearMessage();
+    setAuthLoading(true);
 
     try {
-      setAuthLoading(true);
-      setMessage("");
-
-      const data = await apiRequest(
-        `${API_BASE}/api/auth/register`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name: registerName,
-            email: registerEmail,
-            password: registerPassword,
-          }),
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        false
-      );
+        body: JSON.stringify(registerForm),
+      });
 
-      const authToken = data.token;
-      const authUser = data.user;
+      const data = await res.json();
 
-      if (!authToken || !authUser) {
-        throw new Error("Register response missing token or user.");
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Registration failed.");
       }
 
-      saveAuth(authToken, authUser);
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        setToken(data.token);
+      }
+
+      setUser(data.user || null);
       setMessage("Registration successful.");
+      setRegisterForm({ name: "", email: "", password: "" });
     } catch (error) {
       setMessage(error.message || "Registration failed.");
     } finally {
@@ -208,1035 +198,526 @@ function App() {
     }
   };
 
-  const handleFixErrors = async () => {
-    if (!errorText.trim()) {
-      setMessage("Paste the coding error first.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMessage("");
-      setFixResult("");
-
-      const data = await apiRequest(
-        `${API_BASE}/api/screenshots`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            errorText,
-          }),
-        },
-        false
-      );
-
-      setFixResult(data.result || "No result returned.");
-      setMessage("Fix generated.");
-    } catch (error) {
-      setMessage(error.message || "Failed to analyze error.");
-    } finally {
-      setLoading(false);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken("");
+    setUser(null);
+    setMessage("Logged out.");
+    setActiveTab("fix-errors");
   };
 
-  const handleResumeTailor = async () => {
-    if (!resumeText.trim() || !jobDescription.trim()) {
-      setMessage("Paste both resume and job description.");
+  const requirePro = () => {
+    if (!isLoggedIn) {
+      setMessage("Please login first.");
+      return false;
+    }
+
+    if (!isPro) {
+      setMessage("Upgrade to Pro to use this feature.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleFixErrors = async (e) => {
+    e.preventDefault();
+    clearMessage();
+
+    if (!fixErrorsForm.errorText.trim()) {
+      setMessage("Paste an error or screenshot text first.");
       return;
     }
 
-    try {
-      setLoading(true);
-      setMessage("");
-      setResumeResult("");
+    if (!requirePro()) return;
 
-      const data = await apiRequest(`${API_BASE}/api/resume-tailor`, {
+    setFixErrorsLoading(true);
+    setFixErrorsResult("");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/screenshots`, {
         method: "POST",
+        headers: authHeaders,
         body: JSON.stringify({
-          resumeText,
-          jobDescription,
+          errorText: fixErrorsForm.errorText,
         }),
       });
 
-      const result =
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Fix Errors request failed.");
+      }
+
+      const resultText =
+        data.result ||
+        data.output ||
+        data.answer ||
+        JSON.stringify(data, null, 2);
+
+      setFixErrorsResult(resultText);
+      setMessage("Fix Errors completed.");
+    } catch (error) {
+      setMessage(error.message || "Fix Errors failed.");
+    } finally {
+      setFixErrorsLoading(false);
+    }
+  };
+
+  const handleResumeTailor = async (e) => {
+    e.preventDefault();
+    clearMessage();
+
+    if (!resumeForm.resumeText.trim() || !resumeForm.jobDescription.trim()) {
+      setMessage("Resume text and job description are required.");
+      return;
+    }
+
+    if (!requirePro()) return;
+
+    setResumeLoading(true);
+    setResumeResult("");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/resume-tailor`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          resumeText: resumeForm.resumeText,
+          jobDescription: resumeForm.jobDescription,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Resume tailoring failed.");
+      }
+
+      const resultText =
         data.tailoredResume ||
         data.result ||
-        data.resume ||
-        "No tailored resume returned.";
+        data.output ||
+        JSON.stringify(data, null, 2);
 
-      setResumeResult(result);
-      setMessage("Resume tailored.");
+      setResumeResult(resultText);
+      setMessage("Resume tailored successfully.");
     } catch (error) {
-      setMessage(error.message || "Failed to tailor resume.");
+      setMessage(error.message || "Resume tailoring failed.");
     } finally {
-      setLoading(false);
+      setResumeLoading(false);
     }
   };
 
-  const handleCoverLetter = async () => {
-    if (!coverResumeText.trim() || !coverJobDescription.trim()) {
-      setMessage("Paste both resume and job description for cover letter.");
+  const handleCoverLetter = async (e) => {
+    e.preventDefault();
+    clearMessage();
+
+    if (!coverLetterForm.resumeText.trim() || !coverLetterForm.jobDescription.trim()) {
+      setMessage("Resume text and job description are required.");
       return;
     }
 
-    try {
-      setLoading(true);
-      setMessage("");
-      setCoverLetterResult("");
+    if (!requirePro()) return;
 
-      const data = await apiRequest(`${API_BASE}/api/cover-letter`, {
+    setCoverLetterLoading(true);
+    setCoverLetterResult("");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/cover-letter/generate`, {
         method: "POST",
+        headers: authHeaders,
         body: JSON.stringify({
-          resumeText: coverResumeText,
-          jobDescription: coverJobDescription,
+          resumeText: coverLetterForm.resumeText,
+          jobDescription: coverLetterForm.jobDescription,
+          companyName: coverLetterForm.companyName,
+          roleTitle: coverLetterForm.roleTitle,
         }),
       });
 
-      const result =
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Cover letter generation failed.");
+      }
+
+      const resultText =
         data.coverLetter ||
         data.result ||
-        data.letter ||
-        "No cover letter returned.";
+        data.output ||
+        JSON.stringify(data, null, 2);
 
-      setCoverLetterResult(result);
-      setMessage("Cover letter generated.");
+      setCoverLetterResult(resultText);
+      setMessage("Cover letter generated successfully.");
     } catch (error) {
-      setMessage(error.message || "Failed to generate cover letter.");
+      setMessage(error.message || "Cover letter generation failed.");
     } finally {
-      setLoading(false);
+      setCoverLetterLoading(false);
     }
-  };
-
-  const handleSearchJobs = async () => {
-    if (!jobSearch.trim()) {
-      setMessage("Enter a job search.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMessage("");
-      setJobs([]);
-
-      const payload = {
-        search: jobSearch,
-        limit: 12,
-        minimumScore,
-        remoteOnly: true,
-        profileEmail: user?.email || "",
-        profileName: user?.name || "Devendra Reddy Mekala",
-        profilePhone: user?.phone || "",
-        profileLinkedIn:
-          user?.linkedin ||
-          "https://www.linkedin.com/in/devendra-reddy-m-2492813a1",
-        profileGitHub: user?.github || "https://github.com/devendrareddy23",
-        resumeText:
-          resumeText ||
-          coverResumeText ||
-          localStorage.getItem("savedResume") ||
-          "",
-        preferredRoles: "Backend Engineer, Node.js Developer",
-        preferredLocations: "Remote, India, Worldwide, Europe",
-      };
-
-      const data = await apiRequest(
-        `${API_BASE}/api/jobs/search`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        },
-        false
-      );
-
-      const foundJobs = data.jobs || data.results || [];
-      setJobs(foundJobs);
-      setMessage(`Found ${foundJobs.length} jobs.`);
-    } catch (error) {
-      setMessage(error.message || "Failed to search jobs.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyJob = async (job) => {
-    try {
-      setLoading(true);
-      setMessage(`Applying to ${job.title || "job"}...`);
-
-      const payload = {
-        profileEmail: user?.email || "",
-        source: "manual",
-        minimumScore: job?.score || 60,
-      };
-
-      await apiRequest(
-        `${API_BASE}/api/india-auto-hunt/apply-all`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        },
-        false
-      );
-
-      setJobs((prev) =>
-        prev.map((item) =>
-          item === job ? { ...item, applied: true } : item
-        )
-      );
-
-      setMessage(`Applied to ${job.title || "job"}.`);
-    } catch (error) {
-      setMessage(error.message || "Apply failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const skipJob = (job) => {
-    setJobs((prev) => prev.filter((item) => item !== job));
-    setMessage(`Skipped ${job.title || "job"}.`);
   };
 
   const handleUpgradePro = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
+    clearMessage();
 
-      const data = await apiRequest(
-        `${API_BASE}/api/billing/create-checkout-session`,
-        {
-          method: "POST",
-          body: JSON.stringify({ plan: "pro" }),
-        }
-      );
+    if (!isLoggedIn) {
+      setMessage("Please login before upgrading.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/billing/create-checkout-session`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ plan: "pro" }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Checkout creation failed.");
+      }
 
       if (data.url) {
         window.location.href = data.url;
         return;
       }
 
-      setMessage("Checkout URL not returned.");
+      setMessage("Checkout session created, but no redirect URL was returned.");
     } catch (error) {
-      setMessage(error.message || "Failed to start Pro checkout.");
-    } finally {
-      setLoading(false);
+      setMessage(error.message || "Upgrade failed.");
     }
   };
 
-  const handleUpgradeAutoApply = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
+  const renderAuthCard = () => {
+    if (authMode === "login") {
+      return (
+        <form className="card auth-card" onSubmit={handleLogin}>
+          <h2>Welcome back</h2>
+          <p className="muted">Login to access your private HireFlow AI workspace.</p>
 
-      const data = await apiRequest(
-        `${API_BASE}/api/billing/create-checkout-session`,
-        {
-          method: "POST",
-          body: JSON.stringify({ plan: "auto_apply" }),
-        }
+          <label>Email</label>
+          <input
+            type="email"
+            value={loginForm.email}
+            onChange={(e) =>
+              setLoginForm((prev) => ({ ...prev, email: e.target.value }))
+            }
+            placeholder="Enter your email"
+            required
+          />
+
+          <label>Password</label>
+          <input
+            type="password"
+            value={loginForm.password}
+            onChange={(e) =>
+              setLoginForm((prev) => ({ ...prev, password: e.target.value }))
+            }
+            placeholder="Enter your password"
+            required
+          />
+
+          <button type="submit" disabled={authLoading}>
+            {authLoading ? "Logging in..." : "Login"}
+          </button>
+
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => {
+              clearMessage();
+              setAuthMode("register");
+            }}
+          >
+            Need an account? Register
+          </button>
+        </form>
       );
-
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-
-      setMessage("Checkout URL not returned.");
-    } catch (error) {
-      setMessage(error.message || "Failed to start Auto Apply checkout.");
-    } finally {
-      setLoading(false);
     }
-  };
 
-  if (!token || !user) {
     return (
-      <div style={styles.appShell}>
-        <div style={styles.authPage}>
-          <div style={styles.authCard}>
-            <div style={styles.brand}>HIREFLOW AI</div>
-            <h1 style={styles.authTitle}>
-              Find jobs. Tailor your resume. Generate cover letters.
-            </h1>
-            <p style={styles.authSubTitle}>
-              Private login for every user. No shared data across accounts.
-            </p>
+      <form className="card auth-card" onSubmit={handleRegister}>
+        <h2>Create account</h2>
+        <p className="muted">Your data stays private to your account.</p>
 
-            <div style={styles.authTabs}>
-              <button
-                onClick={() => setAuthMode("login")}
-                style={
-                  authMode === "login"
-                    ? styles.activeTabButton
-                    : styles.tabButton
-                }
-              >
-                Login
-              </button>
-              <button
-                onClick={() => setAuthMode("register")}
-                style={
-                  authMode === "register"
-                    ? styles.activeTabButton
-                    : styles.tabButton
-                }
-              >
-                Register
-              </button>
-            </div>
+        <label>Name</label>
+        <input
+          type="text"
+          value={registerForm.name}
+          onChange={(e) =>
+            setRegisterForm((prev) => ({ ...prev, name: e.target.value }))
+          }
+          placeholder="Enter your name"
+          required
+        />
 
-            {message ? <div style={styles.messageBox}>{message}</div> : null}
+        <label>Email</label>
+        <input
+          type="email"
+          value={registerForm.email}
+          onChange={(e) =>
+            setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+          }
+          placeholder="Enter your email"
+          required
+        />
 
-            {authMode === "login" && (
-              <div>
-                <label style={styles.label}>Email</label>
-                <input
-                  type="email"
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                />
+        <label>Password</label>
+        <input
+          type="password"
+          value={registerForm.password}
+          onChange={(e) =>
+            setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+          }
+          placeholder="Create a password"
+          required
+        />
 
-                <label style={styles.label}>Password</label>
-                <input
-                  type="password"
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
+        <button type="submit" disabled={authLoading}>
+          {authLoading ? "Creating account..." : "Register"}
+        </button>
 
-                <button
-                  onClick={handleLogin}
-                  style={styles.primaryButton}
-                  disabled={authLoading}
-                >
-                  {authLoading ? "Logging in..." : "Login"}
-                </button>
-              </div>
-            )}
-
-            {authMode === "register" && (
-              <div>
-                <label style={styles.label}>Name</label>
-                <input
-                  type="text"
-                  style={styles.input}
-                  placeholder="Enter your name"
-                  value={registerName}
-                  onChange={(e) => setRegisterName(e.target.value)}
-                />
-
-                <label style={styles.label}>Email</label>
-                <input
-                  type="email"
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  value={registerEmail}
-                  onChange={(e) => setRegisterEmail(e.target.value)}
-                />
-
-                <label style={styles.label}>Password</label>
-                <input
-                  type="password"
-                  style={styles.input}
-                  placeholder="Create a password"
-                  value={registerPassword}
-                  onChange={(e) => setRegisterPassword(e.target.value)}
-                />
-
-                <button
-                  onClick={handleRegister}
-                  style={styles.primaryButton}
-                  disabled={authLoading}
-                >
-                  {authLoading ? "Creating account..." : "Register"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        <button
+          type="button"
+          className="secondary-btn"
+          onClick={() => {
+            clearMessage();
+            setAuthMode("login");
+          }}
+        >
+          Already have an account? Login
+        </button>
+      </form>
     );
-  }
+  };
 
   return (
-    <div style={styles.appShell}>
-      <div style={styles.page}>
-        <div style={styles.heroCard}>
-          <div style={styles.headerRow}>
-            <div>
-              <div style={styles.brand}>HIREFLOW AI</div>
-              <h1 style={styles.mainTitle}>
-                Fix coding errors, tailor your resume, generate cover letters,
-                and find jobs.
-              </h1>
-              <p style={styles.subTitle}>
-                Logged in as <strong>{user.email}</strong> · Plan{" "}
-                <strong>{currentPlan}</strong>
-              </p>
-            </div>
+    <div className="app-shell">
+      <header className="topbar">
+        <div>
+          <h1>HireFlow AI</h1>
+          <p className="muted">
+            Developer Career Toolkit — private accounts, AI tools, and paid access.
+          </p>
+        </div>
 
-            <button onClick={logout} style={styles.secondaryButton}>
+        <div className="topbar-right">
+          <div className="status-card">
+            <div><strong>API Base:</strong> {API_BASE}</div>
+            <div>
+              <strong>Plan:</strong>{" "}
+              {loadingUser ? "Loading..." : user?.plan?.toUpperCase() || "FREE"}
+            </div>
+            <div>
+              <strong>Status:</strong>{" "}
+              {loadingUser ? "Loading..." : user?.subscriptionStatus || "inactive"}
+            </div>
+          </div>
+
+          {isLoggedIn ? (
+            <button className="secondary-btn" onClick={handleLogout}>
               Logout
             </button>
-          </div>
+          ) : null}
+        </div>
+      </header>
 
-          <div style={styles.statsGrid}>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>CURRENT PLAN</div>
-              <div style={styles.statValue}>
-                {currentPlan === "auto_apply" ? "Auto Apply" : currentPlan}
-              </div>
-            </div>
+      {message ? <div className="message-box">{message}</div> : null}
 
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>ACCOUNT STATUS</div>
-              <div style={styles.statValue}>Active</div>
-            </div>
+      {!isLoggedIn ? (
+        <main className="auth-layout">{renderAuthCard()}</main>
+      ) : (
+        <main className="dashboard-layout">
+          <section className="card dashboard-card">
+            <h2>HireFlow Dashboard</h2>
+            <p><strong>Email:</strong> {user?.email || "Loading..."}</p>
+            <p><strong>Name:</strong> {user?.name || "Loading..."}</p>
+            <p><strong>Plan:</strong> {loadingUser ? "Loading..." : user?.plan?.toUpperCase() || "FREE"}</p>
+            <p><strong>Status:</strong> {loadingUser ? "Loading..." : user?.subscriptionStatus || "inactive"}</p>
 
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>RESUME TAILOR</div>
-              <div style={styles.statValue}>
-                {isPro ? "Unlocked" : "Limited"}
-              </div>
-            </div>
+            {!isPro && !loadingUser ? (
+              <button onClick={handleUpgradePro}>Upgrade to Pro</button>
+            ) : null}
+          </section>
 
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>AUTO APPLY</div>
-              <div style={styles.statValue}>
-                {autoApplyEnabled ? "Enabled" : "Not enabled"}
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.actionRow}>
-            {!isPro ? (
-              <button onClick={handleUpgradePro} style={styles.primaryButton}>
-                Upgrade to Pro
-              </button>
-            ) : (
-              <button style={styles.primaryButtonDisabled} disabled>
-                Pro Active
-              </button>
-            )}
-
-            {!autoApplyEnabled ? (
-              <button
-                onClick={handleUpgradeAutoApply}
-                style={styles.secondaryButton}
-              >
-                Get Auto Apply
-              </button>
-            ) : (
-              <button style={styles.primaryButtonDisabled} disabled>
-                Auto Apply Active
-              </button>
-            )}
-          </div>
-
-          <div style={styles.tabs}>
+          <section className="tabs-row">
             <button
-              onClick={() => setActiveTab("fix")}
-              style={
-                activeTab === "fix" ? styles.activeTabButton : styles.tabButton
-              }
+              className={activeTab === "fix-errors" ? "tab active" : "tab"}
+              onClick={() => setActiveTab("fix-errors")}
             >
               Fix Errors
             </button>
-
             <button
-              onClick={() => setActiveTab("resume")}
-              style={
-                activeTab === "resume"
-                  ? styles.activeTabButton
-                  : styles.tabButton
-              }
+              className={activeTab === "resume-tailor" ? "tab active" : "tab"}
+              onClick={() => setActiveTab("resume-tailor")}
             >
               Resume Tailor
             </button>
-
             <button
-              onClick={() => setActiveTab("cover")}
-              style={
-                activeTab === "cover"
-                  ? styles.activeTabButton
-                  : styles.tabButton
-              }
+              className={activeTab === "cover-letter" ? "tab active" : "tab"}
+              onClick={() => setActiveTab("cover-letter")}
             >
               Cover Letter
             </button>
+          </section>
 
-            <button
-              onClick={() => setActiveTab("jobs")}
-              style={
-                activeTab === "jobs" ? styles.activeTabButton : styles.tabButton
-              }
-            >
-              Jobs
-            </button>
-          </div>
-        </div>
+          {activeTab === "fix-errors" && (
+            <section className="card tool-card">
+              <h2>Fix Errors</h2>
+              <p className="muted">
+                Paste coding error text and get an AI explanation + fix path.
+              </p>
 
-        {message ? (
-          <div style={styles.messageBox}>
-            {loading ? "Working... " : ""}
-            {message}
-          </div>
-        ) : null}
+              <form onSubmit={handleFixErrors}>
+                <label>Error Text</label>
+                <textarea
+                  rows="10"
+                  value={fixErrorsForm.errorText}
+                  onChange={(e) =>
+                    setFixErrorsForm({ errorText: e.target.value })
+                  }
+                  placeholder="Paste terminal error, stack trace, or problem here..."
+                />
 
-        {activeTab === "fix" && (
-          <div style={styles.sectionCard}>
-            <h2 style={styles.sectionTitle}>Fix Errors</h2>
-            <p style={styles.sectionText}>
-              Paste the coding error and get a structured fix.
-            </p>
+                <button type="submit" disabled={fixErrorsLoading}>
+                  {fixErrorsLoading ? "Analyzing..." : "Analyze Error"}
+                </button>
+              </form>
 
-            <textarea
-              style={styles.textarea}
-              placeholder="Paste your coding error here..."
-              value={errorText}
-              onChange={(e) => setErrorText(e.target.value)}
-            />
+              {fixErrorsResult ? (
+                <div className="result-box">
+                  <h3>Result</h3>
+                  <pre>{fixErrorsResult}</pre>
+                </div>
+              ) : null}
+            </section>
+          )}
 
-            <div style={styles.inlineButtons}>
-              <button
-                onClick={handleFixErrors}
-                style={styles.primaryButton}
-                disabled={loading}
-              >
-                {loading ? "Analyzing..." : "Analyze Error"}
-              </button>
-              <button
-                onClick={() => copyText(fixResult)}
-                style={styles.secondaryButton}
-                disabled={!fixResult}
-              >
-                Copy Result
-              </button>
-            </div>
+          {activeTab === "resume-tailor" && (
+            <section className="card tool-card">
+              <h2>Resume Tailor</h2>
+              <p className="muted">
+                Use your stored resume text and tailor it to the job description.
+              </p>
 
-            {fixResult ? <pre style={styles.resultBox}>{fixResult}</pre> : null}
-          </div>
-        )}
+              <form onSubmit={handleResumeTailor}>
+                <label>Resume Text</label>
+                <textarea
+                  rows="12"
+                  value={resumeForm.resumeText}
+                  onChange={(e) =>
+                    setResumeForm((prev) => ({
+                      ...prev,
+                      resumeText: e.target.value,
+                    }))
+                  }
+                  placeholder="Paste your full resume text..."
+                />
 
-        {activeTab === "resume" && (
-          <div style={styles.sectionCard}>
-            <h2 style={styles.sectionTitle}>Resume Tailor</h2>
-            <p style={styles.sectionText}>
-              Match your resume to a job description without rewriting
-              everything manually.
-            </p>
+                <label>Job Description</label>
+                <textarea
+                  rows="12"
+                  value={resumeForm.jobDescription}
+                  onChange={(e) =>
+                    setResumeForm((prev) => ({
+                      ...prev,
+                      jobDescription: e.target.value,
+                    }))
+                  }
+                  placeholder="Paste the job description..."
+                />
 
-            <label style={styles.label}>Saved Resume</label>
-            <textarea
-              style={styles.textarea}
-              placeholder="Paste your full resume here..."
-              value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
-            />
+                <button type="submit" disabled={resumeLoading}>
+                  {resumeLoading ? "Tailoring..." : "Tailor Resume"}
+                </button>
+              </form>
 
-            <div style={styles.inlineButtons}>
-              <button onClick={saveResume} style={styles.secondaryButton}>
-                Save Resume
-              </button>
-              <button onClick={clearSavedResume} style={styles.secondaryButton}>
-                Clear Saved Resume
-              </button>
-            </div>
+              {resumeResult ? (
+                <div className="result-box">
+                  <h3>Tailored Resume</h3>
+                  <pre>{resumeResult}</pre>
+                </div>
+              ) : null}
+            </section>
+          )}
 
-            <label style={styles.label}>Job Description</label>
-            <textarea
-              style={styles.textarea}
-              placeholder="Paste the target job description here..."
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-            />
+          {activeTab === "cover-letter" && (
+            <section className="card tool-card">
+              <h2>Cover Letter</h2>
+              <p className="muted">
+                Generate a job-specific cover letter using your resume and JD.
+              </p>
 
-            <div style={styles.inlineButtons}>
-              <button
-                onClick={handleResumeTailor}
-                style={styles.primaryButton}
-                disabled={loading}
-              >
-                {loading ? "Tailoring..." : "Tailor Resume"}
-              </button>
-              <button
-                onClick={() => copyText(resumeResult)}
-                style={styles.secondaryButton}
-                disabled={!resumeResult}
-              >
-                Copy Result
-              </button>
-            </div>
+              <form onSubmit={handleCoverLetter}>
+                <label>Company Name</label>
+                <input
+                  type="text"
+                  value={coverLetterForm.companyName}
+                  onChange={(e) =>
+                    setCoverLetterForm((prev) => ({
+                      ...prev,
+                      companyName: e.target.value,
+                    }))
+                  }
+                  placeholder="Optional"
+                />
 
-            {resumeResult ? (
-              <pre style={styles.resultBox}>{resumeResult}</pre>
-            ) : null}
-          </div>
-        )}
+                <label>Role Title</label>
+                <input
+                  type="text"
+                  value={coverLetterForm.roleTitle}
+                  onChange={(e) =>
+                    setCoverLetterForm((prev) => ({
+                      ...prev,
+                      roleTitle: e.target.value,
+                    }))
+                  }
+                  placeholder="Optional"
+                />
 
-        {activeTab === "cover" && (
-          <div style={styles.sectionCard}>
-            <h2 style={styles.sectionTitle}>Cover Letter Generator</h2>
-            <p style={styles.sectionText}>
-              Generate a clean, job-specific cover letter from your resume and
-              JD.
-            </p>
+                <label>Resume Text</label>
+                <textarea
+                  rows="12"
+                  value={coverLetterForm.resumeText}
+                  onChange={(e) =>
+                    setCoverLetterForm((prev) => ({
+                      ...prev,
+                      resumeText: e.target.value,
+                    }))
+                  }
+                  placeholder="Paste your full resume text..."
+                />
 
-            <label style={styles.label}>Resume</label>
-            <textarea
-              style={styles.textarea}
-              placeholder="Paste your resume here..."
-              value={coverResumeText}
-              onChange={(e) => setCoverResumeText(e.target.value)}
-            />
+                <label>Job Description</label>
+                <textarea
+                  rows="12"
+                  value={coverLetterForm.jobDescription}
+                  onChange={(e) =>
+                    setCoverLetterForm((prev) => ({
+                      ...prev,
+                      jobDescription: e.target.value,
+                    }))
+                  }
+                  placeholder="Paste the job description..."
+                />
 
-            <div style={styles.inlineButtons}>
-              <button
-                onClick={() => {
-                  setCoverResumeText(localStorage.getItem("savedResume") || "");
-                  setMessage("Loaded saved resume into cover letter section.");
-                }}
-                style={styles.secondaryButton}
-              >
-                Load Saved Resume
-              </button>
-            </div>
+                <button type="submit" disabled={coverLetterLoading}>
+                  {coverLetterLoading ? "Generating..." : "Generate Cover Letter"}
+                </button>
+              </form>
 
-            <label style={styles.label}>Job Description</label>
-            <textarea
-              style={styles.textarea}
-              placeholder="Paste the target job description here..."
-              value={coverJobDescription}
-              onChange={(e) => setCoverJobDescription(e.target.value)}
-            />
-
-            <div style={styles.inlineButtons}>
-              <button
-                onClick={handleCoverLetter}
-                style={styles.primaryButton}
-                disabled={loading}
-              >
-                {loading ? "Generating..." : "Generate Cover Letter"}
-              </button>
-              <button
-                onClick={() => copyText(coverLetterResult)}
-                style={styles.secondaryButton}
-                disabled={!coverLetterResult}
-              >
-                Copy Result
-              </button>
-            </div>
-
-            {coverLetterResult ? (
-              <pre style={styles.resultBox}>{coverLetterResult}</pre>
-            ) : null}
-          </div>
-        )}
-
-        {activeTab === "jobs" && (
-          <div style={styles.sectionCard}>
-            <h2 style={styles.sectionTitle}>Job Finder</h2>
-            <p style={styles.sectionText}>
-              Search jobs and score them against your profile.
-            </p>
-
-            <label style={styles.label}>Job Search</label>
-            <input
-              type="text"
-              style={styles.input}
-              placeholder="Node.js Backend Engineer"
-              value={jobSearch}
-              onChange={(e) => setJobSearch(e.target.value)}
-            />
-
-            <label style={styles.label}>Minimum Score</label>
-            <input
-              type="number"
-              style={styles.input}
-              min="0"
-              max="100"
-              value={minimumScore}
-              onChange={(e) => setMinimumScore(Number(e.target.value))}
-            />
-
-            <div style={styles.inlineButtons}>
-              <button
-                onClick={handleSearchJobs}
-                style={styles.primaryButton}
-                disabled={loading}
-              >
-                {loading ? "Searching..." : "Search Jobs"}
-              </button>
-            </div>
-
-            <div style={styles.jobsList}>
-              {jobs.length === 0 ? (
-                <div style={styles.emptyState}>No jobs loaded yet.</div>
-              ) : (
-                jobs.map((job, index) => (
-                  <div
-                    key={job._id || job.jobId || index}
-                    style={styles.jobCard}
-                  >
-                    <h3 style={styles.jobTitle}>
-                      {job.title || "Untitled Role"}
-                    </h3>
-
-                    <p style={styles.jobMeta}>
-                      <strong>Company:</strong> {job.company || "Unknown"}
-                    </p>
-
-                    <p style={styles.jobMeta}>
-                      <strong>Location:</strong> {job.location || "Not provided"}
-                    </p>
-
-                    <p style={styles.jobMeta}>
-                      <strong>Score:</strong> {job.score ?? "N/A"}
-                    </p>
-
-                    <div style={styles.jobActions}>
-                      <button
-                        onClick={() => applyJob(job)}
-                        style={styles.primaryButton}
-                        disabled={loading || job.applied}
-                      >
-                        {job.applied ? "Applied" : "Apply"}
-                      </button>
-
-                      <button
-                        onClick={() => skipJob(job)}
-                        style={styles.secondaryButton}
-                        disabled={loading}
-                      >
-                        Skip
-                      </button>
-
-                      {job.redirect_url || job.url ? (
-                        <a
-                          href={job.redirect_url || job.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={styles.jobLinkButton}
-                        >
-                          Open
-                        </a>
-                      ) : null}
-                    </div>
-
-                    {job.description ? (
-                      <p style={styles.jobDescription}>
-                        {job.description.slice(0, 250)}...
-                      </p>
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+              {coverLetterResult ? (
+                <div className="result-box">
+                  <h3>Generated Cover Letter</h3>
+                  <pre>{coverLetterResult}</pre>
+                </div>
+              ) : null}
+            </section>
+          )}
+        </main>
+      )}
     </div>
   );
 }
-
-const styles = {
-  appShell: {
-    minHeight: "100vh",
-    background:
-      "linear-gradient(180deg, #041a5c 0%, #07297d 45%, #031543 100%)",
-    color: "#ffffff",
-    padding: "24px",
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  },
-  authPage: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  authCard: {
-    width: "100%",
-    maxWidth: "520px",
-    background: "rgba(9, 30, 100, 0.88)",
-    border: "1px solid rgba(130, 180, 255, 0.35)",
-    borderRadius: "24px",
-    padding: "28px",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
-  },
-  authTitle: {
-    fontSize: "34px",
-    lineHeight: 1.15,
-    margin: "0 0 12px 0",
-  },
-  authSubTitle: {
-    marginTop: 0,
-    marginBottom: "20px",
-    opacity: 0.9,
-  },
-  authTabs: {
-    display: "flex",
-    gap: "12px",
-    marginBottom: "18px",
-    flexWrap: "wrap",
-  },
-  page: {
-    maxWidth: "1100px",
-    margin: "0 auto",
-  },
-  heroCard: {
-    background: "rgba(9, 30, 100, 0.88)",
-    border: "1px solid rgba(130, 180, 255, 0.35)",
-    borderRadius: "24px",
-    padding: "24px",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
-    marginBottom: "20px",
-  },
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "16px",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-  },
-  brand: {
-    fontSize: "14px",
-    fontWeight: "800",
-    letterSpacing: "2px",
-    color: "#7be7ff",
-    marginBottom: "10px",
-  },
-  mainTitle: {
-    fontSize: "42px",
-    lineHeight: 1.15,
-    margin: "0 0 12px 0",
-    maxWidth: "800px",
-  },
-  subTitle: {
-    fontSize: "18px",
-    opacity: 0.92,
-    margin: 0,
-  },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "16px",
-    marginTop: "24px",
-  },
-  statCard: {
-    background:
-      "linear-gradient(180deg, rgba(23,78,214,0.55), rgba(7,32,104,0.7))",
-    border: "1px solid rgba(136, 183, 255, 0.35)",
-    borderRadius: "20px",
-    padding: "20px",
-    textAlign: "center",
-  },
-  statLabel: {
-    fontSize: "13px",
-    fontWeight: "700",
-    letterSpacing: "1px",
-    opacity: 0.85,
-    marginBottom: "10px",
-  },
-  statValue: {
-    fontSize: "28px",
-    fontWeight: "800",
-  },
-  actionRow: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-    marginTop: "18px",
-  },
-  tabs: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-    marginTop: "22px",
-  },
-  tabButton: {
-    border: "none",
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "700",
-    cursor: "pointer",
-    background: "#91a3c7",
-    color: "#ffffff",
-  },
-  activeTabButton: {
-    border: "none",
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "700",
-    cursor: "pointer",
-    background: "linear-gradient(90deg, #41e2ff, #72ff9b)",
-    color: "#03235e",
-  },
-  primaryButton: {
-    border: "none",
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "800",
-    cursor: "pointer",
-    background: "linear-gradient(90deg, #41e2ff, #72ff9b)",
-    color: "#03235e",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryButtonDisabled: {
-    border: "none",
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "800",
-    background: "#6076a5",
-    color: "#d9e4ff",
-    cursor: "not-allowed",
-  },
-  secondaryButton: {
-    border: "none",
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "700",
-    cursor: "pointer",
-    background: "#8f9fc6",
-    color: "#ffffff",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  messageBox: {
-    background: "rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.18)",
-    borderRadius: "14px",
-    padding: "12px 16px",
-    marginBottom: "18px",
-  },
-  sectionCard: {
-    background: "rgba(9, 30, 100, 0.88)",
-    border: "1px solid rgba(130, 180, 255, 0.35)",
-    borderRadius: "24px",
-    padding: "24px",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
-  },
-  sectionTitle: {
-    fontSize: "32px",
-    marginTop: 0,
-    marginBottom: "8px",
-  },
-  sectionText: {
-    marginTop: 0,
-    opacity: 0.92,
-    marginBottom: "20px",
-  },
-  label: {
-    display: "block",
-    fontWeight: "700",
-    marginBottom: "10px",
-    marginTop: "8px",
-  },
-  textarea: {
-    width: "100%",
-    minHeight: "180px",
-    resize: "vertical",
-    padding: "16px",
-    borderRadius: "16px",
-    border: "1px solid rgba(150,190,255,0.35)",
-    background: "#061b63",
-    color: "#ffffff",
-    fontSize: "16px",
-    marginBottom: "14px",
-    boxSizing: "border-box",
-  },
-  input: {
-    width: "100%",
-    padding: "14px 16px",
-    borderRadius: "14px",
-    border: "1px solid rgba(150,190,255,0.35)",
-    background: "#061b63",
-    color: "#ffffff",
-    fontSize: "16px",
-    marginBottom: "14px",
-    boxSizing: "border-box",
-  },
-  inlineButtons: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-    marginBottom: "18px",
-  },
-  resultBox: {
-    whiteSpace: "pre-wrap",
-    background: "#041548",
-    border: "1px solid rgba(150,190,255,0.35)",
-    borderRadius: "16px",
-    padding: "18px",
-    overflowX: "auto",
-    fontSize: "15px",
-    lineHeight: 1.55,
-  },
-  jobsList: {
-    display: "grid",
-    gap: "16px",
-    marginTop: "20px",
-  },
-  emptyState: {
-    background: "#041548",
-    borderRadius: "16px",
-    padding: "18px",
-    border: "1px solid rgba(150,190,255,0.25)",
-    opacity: 0.85,
-  },
-  jobCard: {
-    background: "#041548",
-    borderRadius: "18px",
-    padding: "18px",
-    border: "1px solid rgba(150,190,255,0.25)",
-  },
-  jobTitle: {
-    marginTop: 0,
-    marginBottom: "8px",
-    fontSize: "22px",
-  },
-  jobMeta: {
-    margin: "6px 0",
-    opacity: 0.95,
-  },
-  jobActions: {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
-    marginTop: "12px",
-    marginBottom: "10px",
-  },
-  jobDescription: {
-    marginTop: "12px",
-    opacity: 0.85,
-    lineHeight: 1.5,
-  },
-  jobLink: {
-    display: "inline-block",
-    marginTop: "10px",
-    color: "#7be7ff",
-    fontWeight: "700",
-    textDecoration: "none",
-  },
-  jobLinkButton: {
-    borderRadius: "14px",
-    padding: "12px 18px",
-    fontWeight: "700",
-    background: "#8f9fc6",
-    color: "#ffffff",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-};
 
 export default App;
