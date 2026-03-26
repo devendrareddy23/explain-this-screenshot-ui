@@ -1,0 +1,383 @@
+import { useEffect, useMemo, useState } from "react";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, options);
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || `Request failed: ${response.status}`);
+  }
+
+  return data;
+}
+
+export default function JobsTab({ token, user }) {
+  const [search, setSearch] = useState("node developer");
+  const [location, setLocation] = useState("India");
+  const [country, setCountry] = useState("in");
+  const [remoteOnly, setRemoteOnly] = useState(true);
+
+  const [loading, setLoading] = useState(false);
+  const [refreshingSaved, setRefreshingSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const [searchResults, setSearchResults] = useState([]);
+  const [shortlistedJobs, setShortlistedJobs] = useState([]);
+  const [savedJobs, setSavedJobs] = useState([]);
+
+  const profileEmail = useMemo(() => {
+    return user?.email || "devendrareddym23@gmail.com";
+  }, [user]);
+
+  async function loadStoredJobs(selectedCountry = country) {
+    if (!token) return;
+
+    try {
+      setRefreshingSaved(true);
+      setError("");
+
+      const data = await apiRequest(
+        `/api/jobs/stored?country=${encodeURIComponent(selectedCountry)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setSavedJobs(Array.isArray(data?.jobs) ? data.jobs : []);
+    } catch (err) {
+      setError(err.message || "Failed to load saved jobs.");
+    } finally {
+      setRefreshingSaved(false);
+    }
+  }
+
+  async function handleSearchJobs(e) {
+    e.preventDefault();
+
+    if (!token) {
+      setError("You are not logged in.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      setSuccessMessage("");
+      setSearchResults([]);
+      setShortlistedJobs([]);
+
+      const payload = {
+        search,
+        location,
+        country,
+        remoteOnly,
+        profileEmail,
+      };
+
+      const data = await apiRequest("/api/jobs/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
+      const shortlisted = Array.isArray(data?.shortlistedJobs)
+        ? data.shortlistedJobs
+        : [];
+
+      setSearchResults(jobs);
+      setShortlistedJobs(shortlisted);
+
+      if (jobs.length === 0) {
+        setSuccessMessage("Search completed, but no matching jobs were found.");
+      } else {
+        setSuccessMessage(
+          `Search completed. Found ${jobs.length} jobs, shortlisted ${shortlisted.length}.`
+        );
+      }
+
+      await loadStoredJobs(country);
+    } catch (err) {
+      setError(err.message || "Failed to search jobs.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMarkApplied(jobId) {
+    try {
+      setError("");
+      setSuccessMessage("");
+
+      await apiRequest(`/api/jobs/${jobId}/apply`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setSuccessMessage("Job marked as applied.");
+      await loadStoredJobs(country);
+    } catch (err) {
+      setError(err.message || "Failed to mark job as applied.");
+    }
+  }
+
+  async function handleSkipJob(jobId) {
+    try {
+      setError("");
+      setSuccessMessage("");
+
+      await apiRequest(`/api/jobs/${jobId}/skip`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setSuccessMessage("Job skipped.");
+      await loadStoredJobs(country);
+    } catch (err) {
+      setError(err.message || "Failed to skip job.");
+    }
+  }
+
+  useEffect(() => {
+    if (token) {
+      loadStoredJobs(country);
+    }
+  }, [token]);
+
+  return (
+    <div className="jobs-tab">
+      <div className="section-card">
+        <h2>Jobs</h2>
+        <p>Search real jobs, shortlist relevant ones, and manage saved jobs.</p>
+
+        <form onSubmit={handleSearchJobs} className="jobs-form">
+          <div className="form-group">
+            <label>Role</label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="node developer"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Location</label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="India"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Country</label>
+            <input
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value.toLowerCase())}
+              placeholder="in"
+            />
+          </div>
+
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={remoteOnly}
+              onChange={(e) => setRemoteOnly(e.target.checked)}
+            />
+            Remote only
+          </label>
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Searching..." : "Search Jobs"}
+          </button>
+        </form>
+
+        {error ? <div className="status-error">{error}</div> : null}
+        {successMessage ? (
+          <div className="status-success">{successMessage}</div>
+        ) : null}
+      </div>
+
+      <div className="section-card">
+        <h3>Shortlisted Jobs</h3>
+
+        {shortlistedJobs.length === 0 ? (
+          <p>No shortlisted jobs yet.</p>
+        ) : (
+          <div className="jobs-list">
+            {shortlistedJobs.map((job) => (
+              <div className="job-card" key={job._id || job.jobId}>
+                <h4>{job.title || "Untitled Role"}</h4>
+                <p>
+                  <strong>Company:</strong> {job.company || "Unknown"}
+                </p>
+                <p>
+                  <strong>Location:</strong> {job.location || "Not provided"}
+                </p>
+                <p>
+                  <strong>Remote:</strong> {job.remote ? "Yes" : "No"}
+                </p>
+                <p>
+                  <strong>Applied:</strong> {job.applied ? "Yes" : "No"}
+                </p>
+
+                {job.applyUrl ? (
+                  <a
+                    href={job.applyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="job-link"
+                  >
+                    Open Job
+                  </a>
+                ) : null}
+
+                <div className="job-actions">
+                  {!job.applied ? (
+                    <button onClick={() => handleMarkApplied(job._id)}>
+                      Mark Applied
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() => handleSkipJob(job._id)}
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="section-card">
+        <div className="section-header">
+          <h3>Saved Jobs</h3>
+          <button
+            type="button"
+            onClick={() => loadStoredJobs(country)}
+            disabled={refreshingSaved}
+          >
+            {refreshingSaved ? "Refreshing..." : "Refresh Saved Jobs"}
+          </button>
+        </div>
+
+        {savedJobs.length === 0 ? (
+          <p>No saved jobs yet.</p>
+        ) : (
+          <div className="jobs-list">
+            {savedJobs.map((job) => (
+              <div className="job-card" key={job._id || job.jobId}>
+                <h4>{job.title || "Untitled Role"}</h4>
+                <p>
+                  <strong>Company:</strong> {job.company || "Unknown"}
+                </p>
+                <p>
+                  <strong>Location:</strong> {job.location || "Not provided"}
+                </p>
+                <p>
+                  <strong>Country:</strong> {job.country || "N/A"}
+                </p>
+                <p>
+                  <strong>Remote:</strong> {job.remote ? "Yes" : "No"}
+                </p>
+                <p>
+                  <strong>Applied:</strong> {job.applied ? "Yes" : "No"}
+                </p>
+
+                {job.applyUrl ? (
+                  <a
+                    href={job.applyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="job-link"
+                  >
+                    Open Job
+                  </a>
+                ) : null}
+
+                <div className="job-actions">
+                  {!job.applied ? (
+                    <button onClick={() => handleMarkApplied(job._id)}>
+                      Mark Applied
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() => handleSkipJob(job._id)}
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="section-card">
+        <h3>All Search Results</h3>
+
+        {searchResults.length === 0 ? (
+          <p>No search results yet.</p>
+        ) : (
+          <div className="jobs-list">
+            {searchResults.map((job) => (
+              <div className="job-card" key={job._id || job.jobId}>
+                <h4>{job.title || "Untitled Role"}</h4>
+                <p>
+                  <strong>Company:</strong> {job.company || "Unknown"}
+                </p>
+                <p>
+                  <strong>Location:</strong> {job.location || "Not provided"}
+                </p>
+                <p>
+                  <strong>Remote:</strong> {job.remote ? "Yes" : "No"}
+                </p>
+
+                {job.applyUrl ? (
+                  <a
+                    href={job.applyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="job-link"
+                  >
+                    Open Job
+                  </a>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

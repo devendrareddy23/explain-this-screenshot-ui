@@ -1,0 +1,591 @@
+import JobsTab from "./components/JobsTab";
+import { useEffect, useMemo, useState } from "react";
+import "./App.css";
+
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+function getStoredToken() {
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("hireflowToken") ||
+    ""
+  );
+}
+
+function getStoredUser() {
+  try {
+    const raw =
+      localStorage.getItem("user") ||
+      localStorage.getItem("hireflowUser") ||
+      "";
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function copyText(text, label = "Copied") {
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  alert(label);
+}
+
+function formatScore(score) {
+  if (score === null || score === undefined) return "N/A";
+  return `${score}%`;
+}
+
+function sortJobsByScore(jobs) {
+  return [...jobs].sort((a, b) => (b.score || 0) - (a.score || 0));
+}
+
+function buildResumeText(responseData) {
+  if (!responseData) return "";
+
+  if (typeof responseData === "string") return responseData;
+  if (responseData.tailoredResume) return responseData.tailoredResume;
+  if (responseData.resume) return responseData.resume;
+  if (responseData.output) return responseData.output;
+  if (responseData.text) return responseData.text;
+
+  return JSON.stringify(responseData, null, 2);
+}
+
+function buildCoverLetterText(responseData) {
+  if (!responseData) return "";
+
+  if (typeof responseData === "string") return responseData;
+  if (responseData.coverLetter) return responseData.coverLetter;
+  if (responseData.output) return responseData.output;
+  if (responseData.text) return responseData.text;
+
+  return JSON.stringify(responseData, null, 2);
+}
+
+export default function App() {
+  const [token, setToken] = useState(getStoredToken());
+  const [user, setUser] = useState(getStoredUser());
+
+  const [role, setRole] = useState("Node.js Developer");
+  const [location, setLocation] = useState("India");
+  const [country, setCountry] = useState("in");
+  const [remoteOnly, setRemoteOnly] = useState(true);
+  const [resumeText, setResumeText] = useState(
+    localStorage.getItem("masterResumeText") || ""
+  );
+
+  const [jobs, setJobs] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyError, setApplyError] = useState("");
+  const [tailoredResume, setTailoredResume] = useState("");
+  const [coverLetter, setCoverLetter] = useState("");
+
+  const [applyCount, setApplyCount] = useState(0);
+  const [showResumeEditor, setShowResumeEditor] = useState(false);
+
+  const email =
+    user?.email ||
+    user?.user?.email ||
+    localStorage.getItem("userEmail") ||
+    "devendrareddym23@gmail.com";
+
+  const plan =
+    user?.plan ||
+    user?.user?.plan ||
+    localStorage.getItem("userPlan") ||
+    "free";
+
+  const freeLimit = 5;
+  const isPro = String(plan).toLowerCase() === "pro";
+  const remainingFreeApplies = Math.max(freeLimit - applyCount, 0);
+
+  useEffect(() => {
+    const storedToken = getStoredToken();
+    const storedUser = getStoredUser();
+    setToken(storedToken);
+    setUser(storedUser);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("masterResumeText", resumeText);
+  }, [resumeText]);
+
+  const sortedJobs = useMemo(() => sortJobsByScore(jobs), [jobs]);
+
+  async function handleSearchJobs(e) {
+    e?.preventDefault?.();
+
+    setSearchLoading(true);
+    setSearchError("");
+    setJobs([]);
+    setSelectedJob(null);
+    setTailoredResume("");
+    setCoverLetter("");
+    setApplyError("");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/jobs/search`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          search: role,
+          location,
+          country,
+          remoteOnly,
+          profileEmail: email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to search jobs.");
+      }
+
+      setJobs(Array.isArray(data.jobs) ? data.jobs : []);
+    } catch (error) {
+      setSearchError(error.message || "Something went wrong while searching.");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function handleApplyWithAI(job) {
+    if (!resumeText.trim()) {
+      alert("Paste your master resume first.");
+      setShowResumeEditor(true);
+      return;
+    }
+
+    if (!isPro && applyCount >= freeLimit) {
+      alert("Free limit reached. Upgrade to continue applying with AI.");
+      return;
+    }
+
+    setSelectedJob(job);
+    setApplyLoading(true);
+    setApplyError("");
+    setTailoredResume("");
+    setCoverLetter("");
+
+    try {
+      const jobDescription = `
+Title: ${job.title || ""}
+Company: ${job.company || ""}
+Location: ${job.location || ""}
+Match Score: ${job.score || job.matchScore || 0}
+Description: ${job.description || ""}
+Apply Link: ${job.jobUrl || ""}
+      `.trim();
+
+      const resumeResponse = await fetch(`${API_BASE}/api/resume-tailor`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          resumeText,
+          jobDescription,
+          role: job.title || role,
+          companyName: job.company || "",
+        }),
+      });
+
+      const resumeData = await resumeResponse.json();
+
+      if (!resumeResponse.ok || resumeData.success === false) {
+        throw new Error(resumeData.message || "Failed to tailor resume.");
+      }
+
+      const tailoredResumeText = buildResumeText(resumeData);
+      setTailoredResume(tailoredResumeText);
+
+      const coverLetterResponse = await fetch(`${API_BASE}/api/cover-letter`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          resumeText: tailoredResumeText || resumeText,
+          jobDescription,
+          companyName: job.company || "",
+          role: job.title || role,
+        }),
+      });
+
+      const coverLetterData = await coverLetterResponse.json();
+
+      if (!coverLetterResponse.ok || coverLetterData.success === false) {
+        throw new Error(
+          coverLetterData.message || "Failed to generate cover letter."
+        );
+      }
+
+      const coverLetterText = buildCoverLetterText(coverLetterData);
+      setCoverLetter(coverLetterText);
+
+      if (!isPro) {
+        setApplyCount((prev) => prev + 1);
+      }
+    } catch (error) {
+      setApplyError(error.message || "Failed to prepare application.");
+    } finally {
+      setApplyLoading(false);
+    }
+  }
+
+  function handleOpenApplyLink() {
+    if (!selectedJob?.jobUrl) {
+      alert("No apply link found for this job.");
+      return;
+    }
+    window.open(selectedJob.jobUrl, "_blank", "noopener,noreferrer");
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("hireflowToken");
+    localStorage.removeItem("user");
+    localStorage.removeItem("hireflowUser");
+    localStorage.removeItem("userPlan");
+    localStorage.removeItem("userEmail");
+    window.location.reload();
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-block">
+          <p className="eyebrow">HireFlow AI</p>
+          <h1>Apply to jobs faster with AI</h1>
+          <p className="brand-subtext">
+            Search jobs, generate a tailored resume and cover letter, and apply
+            in minutes.
+          </p>
+        </div>
+
+        <div className="status-card">
+          <p>
+            <span>Email</span>
+            <strong>{email}</strong>
+          </p>
+          <p>
+            <span>Plan</span>
+            <strong className={isPro ? "plan-pro" : "plan-free"}>
+              {String(plan).toUpperCase()}
+            </strong>
+          </p>
+          <p>
+            <span>Applications</span>
+            <strong>
+              {isPro ? "Unlimited" : `${remainingFreeApplies} free left`}
+            </strong>
+          </p>
+
+          <div className="status-actions">
+            <button
+              className="secondary-btn"
+              onClick={() => setShowResumeEditor((prev) => !prev)}
+            >
+              {showResumeEditor ? "Hide Resume" : "Edit Resume"}
+            </button>
+            <button className="ghost-btn" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </div>
+
+        <div className="value-card">
+          <h3>How it works</h3>
+          <ol>
+            <li>Search jobs</li>
+            <li>Pick the best match</li>
+            <li>Generate AI application</li>
+            <li>Open apply link and submit fast</li>
+          </ol>
+        </div>
+
+        {!isPro && (
+          <div className="upgrade-card">
+            <h3>Upgrade to Pro</h3>
+            <p>
+              Unlimited AI applications, faster flow, no free-limit block.
+            </p>
+            <a
+              className="primary-link-btn"
+              href="/pricing"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Upgrade Now
+            </a>
+          </div>
+        )}
+      </aside>
+
+      <main className="main-content">
+        <section className="hero-card">
+          <div>
+            <p className="eyebrow">Main flow</p>
+            <h2>Find jobs and apply with AI</h2>
+            <p>
+              This UI removes clutter. No separate resume tab. No separate cover
+              letter tab. The product now has one clear action: apply faster.
+            </p>
+          </div>
+        </section>
+
+        {showResumeEditor && (
+          <section className="panel-card">
+            <div className="panel-header">
+              <h3>Master Resume</h3>
+              <span className="panel-tag">Required before AI apply</span>
+            </div>
+
+            <textarea
+              className="resume-textarea"
+              placeholder="Paste your full master resume here once. This will be used to tailor for each job."
+              value={resumeText}
+              onChange={(e) => setResumeText(e.target.value)}
+            />
+          </section>
+        )}
+
+        <section className="panel-card">
+          <div className="panel-header">
+            <h3>Search Jobs</h3>
+            <span className="panel-tag">Step 1</span>
+          </div>
+
+          <form className="search-grid" onSubmit={handleSearchJobs}>
+            <div className="field">
+              <label>Role</label>
+              <input
+                type="text"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="Node.js Developer"
+              />
+            </div>
+
+            <div className="field">
+              <label>Location</label>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="India"
+              />
+            </div>
+
+            <div className="field">
+              <label>Country</label>
+              <select value={country} onChange={(e) => setCountry(e.target.value)}>
+                <option value="in">India</option>
+                <option value="us">United States</option>
+                <option value="gb">United Kingdom</option>
+              </select>
+            </div>
+
+            <div className="checkbox-field">
+              <input
+                id="remoteOnly"
+                type="checkbox"
+                checked={remoteOnly}
+                onChange={(e) => setRemoteOnly(e.target.checked)}
+              />
+              <label htmlFor="remoteOnly">Remote only</label>
+            </div>
+
+            <button className="primary-btn" type="submit" disabled={searchLoading}>
+              {searchLoading ? "Searching..." : "Find Jobs"}
+            </button>
+          </form>
+
+          {searchError && <p className="error-text">{searchError}</p>}
+        </section>
+
+        <section className="panel-card">
+          <div className="panel-header">
+            <h3>Matched Jobs</h3>
+            <span className="panel-tag">Step 2</span>
+          </div>
+
+          {!searchLoading && sortedJobs.length === 0 && (
+            <div className="empty-state">
+              <p>No jobs yet. Search using a role like “Node.js Developer”.</p>
+            </div>
+          )}
+
+          <div className="jobs-grid">
+            {sortedJobs.map((job) => (
+              <article className="job-card" key={job.jobId}>
+                <div className="job-top">
+                  <div>
+                    <h4>{job.title || "Untitled Role"}</h4>
+                    <p className="job-company">
+                      {job.company || "Unknown Company"}
+                    </p>
+                  </div>
+                  <span
+                    className={`score-badge ${
+                      (job.score || job.matchScore || 0) >= 60
+                        ? "score-good"
+                        : (job.score || job.matchScore || 0) >= 45
+                        ? "score-mid"
+                        : "score-low"
+                    }`}
+                  >
+                    {formatScore(job.score || job.matchScore)}
+                  </span>
+                </div>
+
+                <p className="job-meta">
+                  {job.location || "Unknown location"} •{" "}
+                  {job.remote ? "Remote" : "Onsite/Hybrid"}
+                </p>
+
+                <p className="job-desc">
+                  {job.description
+                    ? `${job.description.slice(0, 220)}...`
+                    : "No description available."}
+                </p>
+
+                <div className="job-actions">
+                  <button
+                    className="primary-btn"
+                    onClick={() => handleApplyWithAI(job)}
+                    disabled={applyLoading}
+                  >
+                    {applyLoading && selectedJob?.jobId === job.jobId
+                      ? "Preparing..."
+                      : "Apply with AI"}
+                  </button>
+
+                  {job.jobUrl && (
+                    <a
+                      className="secondary-link-btn"
+                      href={job.jobUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View Job
+                    </a>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel-card">
+          <div className="panel-header">
+            <h3>AI Application Workspace</h3>
+            <span className="panel-tag">Step 3</span>
+          </div>
+
+          {!selectedJob && (
+            <div className="empty-state">
+              <p>Select a job and click “Apply with AI” to generate everything.</p>
+            </div>
+          )}
+
+          {selectedJob && (
+            <div className="workspace-grid">
+              <div className="workspace-summary">
+                <div className="summary-box">
+                  <p className="summary-label">Selected Job</p>
+                  <h4>{selectedJob.title}</h4>
+                  <p>
+                    {selectedJob.company} • {selectedJob.location}
+                  </p>
+                  <p>Match Score: {formatScore(selectedJob.score || selectedJob.matchScore)}</p>
+                </div>
+
+                <div className="summary-box">
+                  <p className="summary-label">Status</p>
+                  <p>{applyLoading ? "Generating tailored application..." : "Ready"}</p>
+                  {!isPro && (
+                    <p>
+                      Free usage left: <strong>{remainingFreeApplies}</strong>
+                    </p>
+                  )}
+                </div>
+
+                <div className="workspace-action-stack">
+                  <button
+                    className="primary-btn"
+                    onClick={handleOpenApplyLink}
+                    disabled={!selectedJob?.jobUrl}
+                  >
+                    Open Apply Link
+                  </button>
+
+                  <button
+                    className="secondary-btn"
+                    onClick={() => copyText(tailoredResume, "Resume copied")}
+                    disabled={!tailoredResume}
+                  >
+                    Copy Resume
+                  </button>
+
+                  <button
+                    className="secondary-btn"
+                    onClick={() =>
+                      copyText(coverLetter, "Cover letter copied")
+                    }
+                    disabled={!coverLetter}
+                  >
+                    Copy Cover Letter
+                  </button>
+                </div>
+              </div>
+
+              <div className="workspace-output">
+                <div className="output-card">
+                  <div className="output-header">
+                    <h4>Tailored Resume</h4>
+                    <span>{tailoredResume ? "Ready" : "Waiting"}</span>
+                  </div>
+                  <textarea
+                    className="output-textarea"
+                    value={tailoredResume}
+                    onChange={(e) => setTailoredResume(e.target.value)}
+                    placeholder="Your tailored resume will appear here."
+                  />
+                </div>
+
+                <div className="output-card">
+                  <div className="output-header">
+                    <h4>Cover Letter</h4>
+                    <span>{coverLetter ? "Ready" : "Waiting"}</span>
+                  </div>
+                  <textarea
+                    className="output-textarea"
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                    placeholder="Your AI-generated cover letter will appear here."
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {applyError && <p className="error-text">{applyError}</p>}
+        </section>
+      </main>
+    </div>
+  );
+}
