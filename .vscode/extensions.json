@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "eamodio.gitlens",
+    "mikestead.dotenv",
+    "christian-kohler.path-intellisense",
+    "bradlc.vscode-tailwindcss",
+    "ms-azuretools.vscode-docker",
+    "mongodb.mongodb-vscode",
+    "humao.rest-client",
+    "openai.chatgpt"
+  ]
+}
