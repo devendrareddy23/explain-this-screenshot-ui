@@ -33,61 +33,6 @@ async function loadJsPdf() {
   return jsPdfPromise;
 }
 
-const SOURCE_SUPPORT_FALLBACK = [
-  {
-    key: "linkedin",
-    name: "LinkedIn",
-    market: "Global",
-    category: "global",
-    searchSupport: "Partner/manual import",
-    shortlistSupport: "Supported after normalization",
-    autoApplyLabel: "Manual Apply",
-    autoApplySupported: false,
-    manualActionRequired: true,
-    manualActionReason: "LinkedIn flows still require a manual browser submit.",
-    status: "active",
-  },
-  {
-    key: "naukri",
-    name: "Naukri",
-    market: "India",
-    category: "india",
-    searchSupport: "Adapter-ready",
-    shortlistSupport: "Supported",
-    autoApplyLabel: "Manual Apply",
-    autoApplySupported: false,
-    manualActionRequired: true,
-    manualActionReason: "Naukri requires manual completion to stay reliable.",
-    status: "planned",
-  },
-  {
-    key: "wellfound",
-    name: "Wellfound",
-    market: "Global",
-    category: "global",
-    searchSupport: "Adapter-ready",
-    shortlistSupport: "Supported",
-    autoApplyLabel: "Partial Auto Apply",
-    autoApplySupported: true,
-    manualActionRequired: false,
-    manualActionReason: "Some employer-specific steps may still open externally.",
-    status: "planned",
-  },
-  {
-    key: "weworkremotely",
-    name: "WeWorkRemotely",
-    market: "Global",
-    category: "global",
-    searchSupport: "Adapter-ready",
-    shortlistSupport: "Supported",
-    autoApplyLabel: "Manual Apply",
-    autoApplySupported: false,
-    manualActionRequired: true,
-    manualActionReason: "WeWorkRemotely usually redirects to employer flows.",
-    status: "planned",
-  },
-];
-
 const ONBOARDING_STEPS = [
   {
     key: "preferences",
@@ -131,27 +76,27 @@ const LANDING_TESTIMONIALS = [
 ];
 
 const LANDING_STEPS = [
-  { icon: "1", title: "Upload your resume", description: "Drop in your resume once and let HireFlow AI use it as your source of truth." },
+  { icon: "1", title: "Upload your resume", description: "Drop in your resume once and let HireFlow use it as your source of truth." },
   { icon: "2", title: "Set your dream job criteria", description: "Choose titles, locations, work style, and the kinds of roles you actually want." },
-  { icon: "3", title: "We apply automatically", description: "Tailored resumes, targeted cover letters, and automated applications keep running in the background." },
+  { icon: "3", title: "Review the best matches", description: "HireFlow scans major job boards and keeps only the strongest matches in your queue." },
 ];
 
 const LANDING_PRICING = [
   {
     tier: "Free",
-    price: "5 applications/month",
-    description: "Try the workflow and send a small batch of applications.",
+    price: "$0/month",
+    description: "5 job views, 1 resume tailor, 1 cover letter per month",
   },
   {
     tier: "Pro",
-    price: "₹999/month",
-    description: "100 applications + AI tailoring",
+    price: "$5/month",
+    description: "Complete access to the full workflow",
     featured: true,
   },
   {
-    tier: "Auto",
-    price: "₹2499/month",
-    description: "Unlimited + recruiter emails",
+    tier: "Teams",
+    price: "Contact us",
+    description: "For heavier job search workflows",
   },
 ];
 
@@ -339,10 +284,6 @@ function App() {
   const [recentApplications, setRecentApplications] = useState([]);
   const [recentApplicationsLoading, setRecentApplicationsLoading] = useState(false);
   const [recentApplicationsError, setRecentApplicationsError] = useState("");
-  const [autoApplyLoading, setAutoApplyLoading] = useState(false);
-  const [autoApplyMessage, setAutoApplyMessage] = useState("");
-  const [autoApplyError, setAutoApplyError] = useState("");
-  const [autoAppliedJobs, setAutoAppliedJobs] = useState([]);
   const [applyingJobId, setApplyingJobId] = useState(null);
   const [appliedJobId, setAppliedJobId] = useState(null);
   const [skippingJobId, setSkippingJobId] = useState("");
@@ -380,9 +321,6 @@ function App() {
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState("");
   const [updatingApplicationId, setUpdatingApplicationId] = useState("");
-  const [retryingApplicationId, setRetryingApplicationId] = useState("");
-  const [applicationRetryMessage, setApplicationRetryMessage] = useState("");
-  const [applicationRetryError, setApplicationRetryError] = useState("");
   const [interviewPrepByApplicationId, setInterviewPrepByApplicationId] = useState({});
   const [activeInterviewApplicationId, setActiveInterviewApplicationId] = useState("");
   const [interviewPrepLoadingId, setInterviewPrepLoadingId] = useState("");
@@ -398,10 +336,6 @@ function App() {
   const [offerDrafts, setOfferDrafts] = useState({});
   const [counterGoalDrafts, setCounterGoalDrafts] = useState({});
   const [offerActionLoadingKey, setOfferActionLoadingKey] = useState("");
-  const [referralStats, setReferralStats] = useState(null);
-  const [referralLoading, setReferralLoading] = useState(false);
-  const [referralError, setReferralError] = useState("");
-  const [inviteMessage, setInviteMessage] = useState("");
   const [careerInterviewAnswers, setCareerInterviewAnswers] = useState(() =>
     Object.fromEntries(CAREER_INTERVIEW_QUESTIONS.map((item) => [item.key, ""]))
   );
@@ -413,12 +347,6 @@ function App() {
   const [careerInterviewError, setCareerInterviewError] = useState("");
   const [candidateDiscoveryEnabled, setCandidateDiscoveryEnabled] = useState(false);
   const [candidateDiscoveryHeadline, setCandidateDiscoveryHeadline] = useState("");
-  const [connections, setConnections] = useState([]);
-  const [connectionsLoading, setConnectionsLoading] = useState(false);
-  const [connectionsError, setConnectionsError] = useState("");
-  const [sourceCatalog, setSourceCatalog] = useState(SOURCE_SUPPORT_FALLBACK);
-  const [sourceCatalogLoading, setSourceCatalogLoading] = useState(false);
-  const [sourceCatalogError, setSourceCatalogError] = useState("");
   const { toast, showToast } = useToast();
   const hasStoredToken = Boolean(getStoredToken());
   const appliedJobReferenceSet = useMemo(
@@ -543,8 +471,6 @@ function App() {
 
   const showLoginScreen = useCallback((message = "") => {
     setUser(null);
-    setReferralStats(null);
-    setInviteMessage("");
     setCareerDna(null);
     setCareerInterviewCompletedAt(null);
     setCareerInterviewOpen(false);
@@ -561,7 +487,6 @@ function App() {
     setActiveInterviewApplicationId("");
     setOfferStrategyByApplicationId({});
     setActiveOfferApplicationId("");
-    setConnections([]);
     setAuthMessage(message);
     navigate("/login", { replace: true });
   }, [navigate]);
@@ -925,62 +850,6 @@ function App() {
     }
   }, []);
 
-  const loadReferralStats = useCallback(async () => {
-    try {
-      setReferralLoading(true);
-      setReferralError("");
-
-      const data = await apiRequest("/api/referrals/me", {
-        method: "GET",
-        suppressGlobalError: true,
-      });
-
-      setReferralStats(data?.stats || null);
-    } catch (error) {
-      setReferralError(error.message || "Failed to load referrals.");
-    } finally {
-      setReferralLoading(false);
-    }
-  }, []);
-
-  const loadSourceCatalog = useCallback(async () => {
-    try {
-      setSourceCatalogLoading(true);
-      setSourceCatalogError("");
-
-      const data = await apiRequest("/api/jobs/sources", {
-        method: "GET",
-        suppressGlobalError: true,
-      });
-
-      if (Array.isArray(data?.sources) && data.sources.length) {
-        setSourceCatalog(data.sources);
-      }
-    } catch (error) {
-      setSourceCatalogError(error.message || "Failed to load source catalog.");
-    } finally {
-      setSourceCatalogLoading(false);
-    }
-  }, []);
-
-  const loadConnections = useCallback(async () => {
-    try {
-      setConnectionsLoading(true);
-      setConnectionsError("");
-
-      const data = await apiRequest("/api/preferences/connections", {
-        method: "GET",
-        suppressGlobalError: true,
-      });
-
-      setConnections(Array.isArray(data?.items) ? data.items : []);
-    } catch (error) {
-      setConnectionsError(error.message || "Failed to load referral connections.");
-    } finally {
-      setConnectionsLoading(false);
-    }
-  }, []);
-
   const loadPreferences = useCallback(async () => {
     try {
       setPreferencesLoading(true);
@@ -1158,36 +1027,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!user?._id || activeDashboardTab !== "settings") {
-      return;
-    }
-
-    if (!referralStats && !referralLoading) {
-      void loadReferralStats();
-    }
-
-    if ((!sourceCatalog.length || sourceCatalog === SOURCE_SUPPORT_FALLBACK) && !sourceCatalogLoading) {
-      void loadSourceCatalog();
-    }
-
-    if (!connections.length && !connectionsLoading) {
-      void loadConnections();
-    }
-  }, [
-    activeDashboardTab,
-    connections.length,
-    connectionsLoading,
-    loadConnections,
-    loadReferralStats,
-    loadSourceCatalog,
-    referralLoading,
-    referralStats,
-    sourceCatalog,
-    sourceCatalogLoading,
-    user?._id,
-  ]);
-
-  useEffect(() => {
     const path = location.pathname;
     const isPublicPath = path === "/" || path === "/login" || path === "/register";
 
@@ -1347,8 +1186,64 @@ function App() {
     }
   }
 
+  function extractGeneratedText(payload, candidatePaths = []) {
+    for (const path of candidatePaths) {
+      let current = payload;
+
+      for (const key of path) {
+        current = current?.[key];
+      }
+
+      if (typeof current === "string" && current.trim()) {
+        return current.trim();
+      }
+    }
+
+    for (const candidate of [payload, payload?.result, payload?.data, payload?.output]) {
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+
+      for (const key of ["tailoredResume", "resume", "coverLetter", "output", "content", "text", "body"]) {
+        if (typeof candidate[key] === "string" && candidate[key].trim()) {
+          return candidate[key].trim();
+        }
+      }
+    }
+
+    return "";
+  }
+
+  async function postToFirstAvailableEndpoint(endpoints, body) {
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log("Calling API endpoint:", endpoint);
+        return await apiRequest(endpoint, {
+          method: "POST",
+          body: JSON.stringify(body),
+          suppressGlobalError: true,
+        });
+      } catch (error) {
+        lastError = error;
+
+        if (error?.status === 404) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw lastError || new Error("No working API endpoint was found.");
+  }
+
   async function handleResumeTailor() {
     try {
+      console.log("Generate clicked");
+      console.log("Resume text length:", resumeText.length);
+      console.log("JD text length:", jobDescription.length);
       setResumeLoading(true);
       setResumeError("");
       setResumeSuccess("");
@@ -1357,32 +1252,34 @@ function App() {
       setResumeKeywordsAdded([]);
       setResumeImprovements([]);
 
+      if (freeResumeLimitReached) {
+        setResumeError("Upgrade to $5/month for complete access.");
+        return;
+      }
+
       if (!resumeText.trim() || !jobDescription.trim()) {
         setResumeError("Please fill both Resume Text and Job Description.");
         return;
       }
 
-      const data = await apiRequest("/api/resume-tailor", {
-        method: "POST",
-        body: JSON.stringify({
+      console.log("Calling API...");
+      const data = await postToFirstAvailableEndpoint(
+        ["/api/resume-tailor", "/api/resumeTailor", "/resume-tailor"],
+        {
           resumeText,
           resume: resumeText,
           jobDescription,
-        }),
-      });
-      const rawOutput = data?.tailoredResume ?? data?.result?.tailoredResume ?? data?.result ?? "";
-      const output =
-        typeof rawOutput === "string"
-          ? rawOutput
-          : rawOutput && typeof rawOutput === "object"
-            ? String(
-                rawOutput.tailoredResume ||
-                rawOutput.text ||
-                rawOutput.content ||
-                rawOutput.body ||
-                ""
-              ).trim()
-            : String(rawOutput || "");
+        }
+      );
+      console.log("Response:", data);
+      const output = extractGeneratedText(data, [
+        ["tailoredResume"],
+        ["resume"],
+        ["result", "tailoredResume"],
+        ["result", "resume"],
+        ["result"],
+        ["output"],
+      ]);
       const nextScore = Number(data?.matchScore ?? data?.result?.matchScore ?? 0);
       const nextKeywords = Array.isArray(data?.keywordsAdded)
         ? data.keywordsAdded
@@ -1408,6 +1305,7 @@ function App() {
         return;
       }
 
+      console.log("Setting tailored resume...");
       setTailoredResume(output);
       setResumeMatchScore(nextScore);
       setResumeKeywordsAdded(nextKeywords);
@@ -1531,6 +1429,24 @@ function App() {
     doc.save(`${sanitizeFilename(`${companyName || "cover-letter"}-${jobTitle || "draft"}`) || "cover-letter"}.pdf`);
   }
 
+  function handleDownloadCoverLetterTxt() {
+    const coverLetterText = String(coverLetterDraft || coverLetter || "").trim();
+
+    if (!coverLetterText) {
+      return;
+    }
+
+    const blob = new Blob([coverLetterText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${sanitizeFilename(`${companyName || "cover-letter"}-${jobTitle || "draft"}`) || "cover-letter"}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   async function handleSavePreferences() {
     try {
       setPreferencesSaving(true);
@@ -1648,6 +1564,13 @@ function App() {
 
   async function handleCoverLetterGenerate() {
     try {
+      console.log("Generating cover letter...");
+      console.log("Sending:", {
+        resume: resumeText,
+        jd: jobDescription,
+        company: companyName,
+        jobTitle,
+      });
       setCoverLoading(true);
       setCoverError("");
       setCoverSuccess("");
@@ -1655,41 +1578,43 @@ function App() {
       setCoverLetterDraft("");
       setCoverLetterEditMode(false);
 
+      if (freeCoverLimitReached) {
+        setCoverError("Upgrade to $5/month for complete access.");
+        return;
+      }
+
       if (!resumeText.trim() || !jobDescription.trim()) {
         setCoverError("Please fill Resume Text and Job Description.");
         return;
       }
 
-      const data = await apiRequest("/api/cover-letter", {
-        method: "POST",
-        body: JSON.stringify({
+      console.log("Calling API...");
+      const data = await postToFirstAvailableEndpoint(
+        ["/api/cover-letter", "/cover-letter", "/api/cover-letter/generate"],
+        {
           resumeText,
           resume: resumeText,
           jobDescription,
           companyName,
           company: companyName,
           jobTitle,
-        }),
-      });
-      const rawOutput =
-        data?.coverLetter ??
-        data?.result?.coverLetter ??
-        data?.content ??
-        data?.result ??
-        "";
-      const output =
-        typeof rawOutput === "string"
-          ? rawOutput
-          : rawOutput && typeof rawOutput === "object"
-            ? String(rawOutput.coverLetter || rawOutput.content || JSON.stringify(rawOutput, null, 2))
-            : String(rawOutput || "");
+        }
+      );
+      console.log("Cover letter response:", data);
+      const output = extractGeneratedText(data, [
+        ["coverLetter"],
+        ["result", "coverLetter"],
+        ["content"],
+        ["result"],
+        ["output"],
+      ]);
 
       if (!output) {
         setCoverError("API returned no cover letter text.");
-        setCoverLetter(JSON.stringify(data, null, 2));
         return;
       }
 
+      console.log("Setting cover letter...");
       setCoverLetter(output);
       setCoverLetterDraft(output);
       setCoverSuccess("Cover letter ready to review.");
@@ -1730,28 +1655,6 @@ function App() {
     }
   }
 
-  async function handleAutoApplyNow() {
-    try {
-      setAutoApplyLoading(true);
-      setAutoApplyError("");
-      setAutoApplyMessage("");
-      setAutoAppliedJobs([]);
-
-      const data = await apiRequest("/api/auto-apply/me", {
-        method: "POST",
-      });
-
-      setAutoApplyMessage(data?.message || "Auto apply completed.");
-      setAutoAppliedJobs(Array.isArray(data?.jobs) ? data.jobs : []);
-      await refreshOperationalData();
-    } catch (error) {
-      setAutoApplyError(error.message || "Auto apply failed.");
-      setAutoApplyMessage("");
-    } finally {
-      setAutoApplyLoading(false);
-    }
-  }
-
   async function handleCopyText(value, successMessage) {
     if (!value) return;
 
@@ -1777,7 +1680,7 @@ function App() {
       setApplyingJobId(id);
       setQueueActionError("");
       setQueueActionMessage("");
-      const data = await apiRequest("/api/auto-apply/me", {
+      await apiRequest("/api/auto-apply/me", {
         method: "POST",
         body: JSON.stringify({
           jobId: id,
@@ -1788,8 +1691,7 @@ function App() {
       });
 
       setAppliedJobId(id);
-      setAutoApplyMessage(data?.message || "Applied successfully.");
-      setQueueActionMessage("Application sent. Moving to the next match.");
+      setQueueActionMessage("Saved to Applications. Showing the next match.");
       recordQueueReview("apply");
 
       window.setTimeout(async () => {
@@ -1801,8 +1703,8 @@ function App() {
     } catch (error) {
       setApplyingJobId(null);
       setAppliedJobId(null);
-      setQueueActionError(error.message || "Apply failed. Please try again.");
-      showToast("Apply failed. Please try again.", "error");
+      setQueueActionError(error.message || "We couldn't save this job right now.");
+      showToast("We couldn't save this job right now.", "error");
     }
   }
 
@@ -1997,10 +1899,6 @@ function App() {
     () => applicationPipelineItems.filter((item) => item.lifecycleStatus === "Offer"),
     [applicationPipelineItems]
   );
-  const negotiatingJobs = useMemo(
-    () => applicationPipelineItems.filter((item) => item.lifecycleStatus === "Negotiating"),
-    [applicationPipelineItems]
-  );
   const liveActivityFeed = useMemo(
     () => buildLiveActivityFeed({ applications, savedJobs, applicationStatuses }),
     [applicationStatuses, applications, savedJobs]
@@ -2019,15 +1917,12 @@ function App() {
   const activeOfferStrategy = activeOfferApplication
     ? offerStrategyByApplicationId[activeOfferApplication._id] || null
     : null;
-  const groupedSourceCatalog = useMemo(
-    () => ({
-      india: sourceCatalog.filter((item) => item.category === "india"),
-      global: sourceCatalog.filter((item) => item.category === "global"),
-      startup: sourceCatalog.filter((item) => item.category === "startup"),
-      niche: sourceCatalog.filter((item) => item.category === "niche"),
-    }),
-    [sourceCatalog]
-  );
+  useEffect(() => {
+    console.log("Rendering tailored resume:", tailoredResume?.length || 0);
+  }, [tailoredResume]);
+  useEffect(() => {
+    console.log("Rendering cover letter:", (coverLetterDraft || coverLetter)?.length || 0);
+  }, [coverLetter, coverLetterDraft]);
   const generatedCoverLetterJobs = useMemo(
     () => savedJobs.filter((job) => job.coverLetterText),
     [savedJobs]
@@ -2036,35 +1931,12 @@ function App() {
     () => savedJobs.filter((job) => job.resumeVariants?.length),
     [savedJobs]
   );
-  const dashboardStatCards = [
-    {
-      key: "applications",
-      label: "Total Applications Sent",
-      value: Number(dashboardStats?.totalApplicationsSent || 0),
-      meta: dashboardStats ? "All-time sends tracked by HireFlow" : "Getting started...",
-    },
-    {
-      key: "interviews",
-      label: "Interviews Scheduled",
-      value: Number(dashboardStats?.interviewsScheduled || 0) > 0 ? Number(dashboardStats?.interviewsScheduled || 0) : "—",
-      meta: dashboardStats ? "Interview-stage applications" : "Getting started...",
-    },
-    {
-      key: "responseRate",
-      label: "Response Rate",
-      value: Number(dashboardStats?.responseRate || 0) > 0 ? `${Number(dashboardStats?.responseRate || 0)}%` : "Send applications to track this",
-      meta: dashboardStats ? "Responses divided by applications" : "Getting started...",
-    },
-    {
-      key: "queue",
-      label: "Jobs In Queue",
-      value: Number(dashboardStats?.jobsInQueue || 0),
-      meta: dashboardStats ? "Ready for review in your queue" : "Getting started...",
-    },
-  ];
   const applicationsUsed = Number(dashboardStats?.applicationsUsed ?? applicationsWithContext.length ?? 0);
   const applicationsLimit = Number(dashboardStats?.applicationLimit ?? (Number.isFinite(planLimit) ? planLimit : 0));
   const planUsagePercent = applicationsLimit > 0 ? Math.min(100, applicationsUsed / applicationsLimit * 100) : 0;
+  const freeJobViewLimitReached = user?.plan === "free" && applicationsUsed >= 5;
+  const freeResumeLimitReached = user?.plan === "free" && Number(user?.dailyResumeTailorCount || 0) >= 1;
+  const freeCoverLimitReached = user?.plan === "free" && Number(user?.dailyCoverLetterCount || 0) >= 1;
   const dashboardUserName =
     user?.name?.trim() ||
     user?.email?.split("@")?.[0] ||
@@ -2081,31 +1953,41 @@ function App() {
   const jobsWaitingInQueue = Number(
     pipelineSummary?.queueCount ?? dashboardStats?.jobsInQueue ?? visibleQueuedJobs.length ?? 0
   );
-  const showStarterInsightsCard = !dashboardStatsLoading && totalApplicationsSent === 0;
   const appliedCount = Number(pipelineSummary?.appliedCount ?? applicationsWithContext.length);
   const interviewsReceived = Number(pipelineSummary?.interviewCount ?? interviewJobs.length);
   const viewedCount = Number(pipelineSummary?.viewedCount ?? viewedJobs.length);
   const offerCount = Number(pipelineSummary?.offerCount ?? offerJobs.length);
-  const negotiatingCount = Number(pipelineSummary?.negotiatingCount ?? negotiatingJobs.length);
-  const failedCount = Number(pipelineSummary?.failedCount ?? 0);
   const manualActionNeededCount = Number(
     pipelineSummary?.manualActionNeededCount ?? manualJobs.length
   );
-  const readyJobsCount = Number(pipelineSummary?.readyCount ?? readyJobs.length);
   const matchedJobsCount = Number(pipelineSummary?.matchedCount ?? matchedJobs.length);
-  const respondedCount = viewedCount + interviewsReceived + offerCount + negotiatingCount;
+  const showStarterInsightsCard = !dashboardStatsLoading && totalApplicationsSent === 0;
+  const dashboardStatCards = [
+    {
+      key: "matchedToday",
+      label: "Jobs Matched Today",
+      value: Number(matchedJobsCount || 0),
+      meta: dashboardStats ? "Strong matches surfaced for review" : "Getting started...",
+    },
+    {
+      key: "queue",
+      label: "Jobs In Queue",
+      value: Number(jobsWaitingInQueue || 0),
+      meta: dashboardStats ? "Ready for review in your queue" : "Getting started...",
+    },
+    {
+      key: "applications",
+      label: "Applications Tracking",
+      value: Number(totalApplicationsSent || 0),
+      meta: dashboardStats ? "Jobs moved into your applications tracker" : "Getting started...",
+    },
+  ];
+  const respondedCount = viewedCount + interviewsReceived + offerCount;
   const responseRate = appliedCount ? Math.round(respondedCount / appliedCount * 100) : 0;
   const pipelineLanes = [
-    { title: "Targeted", count: jobsWaitingInQueue, tone: "blue", jobs: targetedJobs },
-    { title: "Matched", count: matchedJobsCount, tone: "blue", jobs: matchedJobs },
-    { title: "Ready", count: readyJobsCount, tone: "green", jobs: readyJobs },
-    { title: "Manual Action Needed", count: manualActionNeededCount, tone: "amber", jobs: manualJobs },
+    { title: "Matched", count: jobsWaitingInQueue, tone: "blue", jobs: targetedJobs },
+    { title: "Saved", count: savedJobs.length, tone: "amber", jobs: savedJobs.slice(0, 12) },
     { title: "Applied", count: appliedCount, tone: "dark", jobs: applicationPipelineItems },
-    { title: "Viewed", count: viewedCount, tone: "blue", jobs: viewedJobs },
-    { title: "Interview", count: interviewsReceived, tone: "green", jobs: interviewJobs },
-    { title: "Offer", count: offerCount, tone: "green", jobs: offerJobs },
-    { title: "Negotiating", count: negotiatingCount, tone: "amber", jobs: negotiatingJobs },
-    { title: "Failed", count: failedCount, tone: "gray", jobs: [] },
   ].filter((lane) => lane.count > 0);
   const activeControlSection =
     activeDashboardTab === "billing"
@@ -2117,7 +1999,7 @@ function App() {
     ? `${jobsWaitingInQueue} matches ready • ${queueAppliedToday} applied today`
     : "Find jobs and review the strongest matches first.";
   const applicationsSectionSummary = appliedCount
-    ? `${appliedCount} tracked applications${interviewsReceived ? ` • ${interviewsReceived} interviews` : ""}`
+    ? `${appliedCount} tracked applications`
     : "Track every application and keep progress moving.";
   const tailoredResumeCount = tailoredResumeJobs.length;
   const resumeSectionSummary = resumeVaultText
@@ -2142,11 +2024,6 @@ function App() {
 
     return appliedDate.toDateString() === today.toDateString();
   }).length;
-  const autoApplyIndicator = autoApplyLoading
-    ? "Running now"
-    : readyJobsCount > 0
-      ? `${readyJobsCount} ready`
-      : "Idle";
   const trustIndicators = [
     {
       key: "matched",
@@ -2162,11 +2039,6 @@ function App() {
       key: "latest",
       label: "Latest Activity",
       value: latestActivityAt ? formatRelativeTime(latestActivityAt) : "No activity yet",
-    },
-    {
-      key: "auto-apply",
-      label: "Auto-Apply",
-      value: autoApplyIndicator,
     },
     {
       key: "manual",
@@ -2316,94 +2188,6 @@ function App() {
       setApplicationsError(error.message || "Failed to update application status.");
     } finally {
       setUpdatingApplicationId("");
-    }
-  }
-
-  function canRetryApplication(application) {
-    const job = application?.jobData || null;
-    const jobReferences = [application?.job, application?.jobId, job?._id, job?.jobId]
-      .map((value) => String(value || "").trim())
-      .filter(Boolean);
-    const alreadyApplied = applications.some((item) => {
-      if (!item || item._id === application?._id || item.status !== "applied") {
-        return false;
-      }
-
-      const itemReferences = [item?.job, item?.jobId]
-        .map((value) => String(value || "").trim())
-        .filter(Boolean);
-
-      return itemReferences.some((candidate) => jobReferences.includes(candidate));
-    });
-
-    if (!application || application.status !== "failed" || alreadyApplied) {
-      return false;
-    }
-
-    if (job?.manualActionRequired || job?.manualActionNeeded) {
-      return true;
-    }
-
-    return job?.sourceCapabilities?.autoApplySupported === true;
-  }
-
-  async function handleRetryApplication(application) {
-    if (!application?._id) {
-      return;
-    }
-
-    try {
-      setRetryingApplicationId(application._id);
-      setApplicationRetryError("");
-      setApplicationRetryMessage("");
-
-      const retryData = await apiRequest(`/api/applications/${application._id}/retry`, {
-        method: "POST",
-      });
-
-      if (retryData?.application) {
-        setApplications((prev) =>
-          prev.map((item) => (item._id === retryData.application._id ? retryData.application : item))
-        );
-      }
-
-      if (retryData?.mode === "manual") {
-        const jobUrl = retryData?.job?.applyUrl || application?.applyUrl || application?.jobData?.applyUrl || application?.jobData?.jobUrl || "";
-
-        if (jobUrl) {
-          const openedWindow = window.open(jobUrl, "_blank", "noopener,noreferrer");
-
-          if (!openedWindow) {
-            setApplicationRetryError("Your browser blocked the job page. Allow popups and try again.");
-            return;
-          }
-        }
-
-        setApplicationRetryMessage(
-          retryData?.message || "Manual retry opened. Complete the submission, then mark the job applied."
-        );
-        await Promise.all([loadStoredJobs(), loadDashboardStats()]);
-        return;
-      }
-
-      if (retryData?.mode === "auto" && retryData?.job?._id) {
-        const applyData = await apiRequest("/api/auto-apply/me", {
-          method: "POST",
-          body: JSON.stringify({
-            jobId: retryData.job._id,
-          }),
-        });
-
-        setApplicationRetryMessage(applyData?.message || "Application retry completed.");
-        await Promise.all([loadApplications(), loadStoredJobs(), loadDashboardStats()]);
-        return;
-      }
-
-      setApplicationRetryError("Retry could not continue for this application.");
-    } catch (error) {
-      setApplicationRetryError(error.message || "Retry failed. Please try again.");
-    } finally {
-      setRetryingApplicationId("");
     }
   }
 
@@ -2620,56 +2404,12 @@ function App() {
     }));
   }
 
-  const referralLink = referralStats?.referralLink || "";
-  const successfulReferrals = Number(referralStats?.referralsCount || 0);
-  const freeMonthsEarned = Number(referralStats?.freeMonthsEarned || 0);
-  const bonusWeeksGranted = Number(referralStats?.bonusWeeksGranted || 0);
   const careerInterviewProgress = Math.round(
     CAREER_INTERVIEW_QUESTIONS.filter((item) => String(careerInterviewAnswers[item.key] || "").trim()).length /
       CAREER_INTERVIEW_QUESTIONS.length * 100
   );
   const hardSkills = Array.isArray(careerDna?.hardSkills) ? careerDna.hardSkills : [];
   const softSkills = Array.isArray(careerDna?.softSkills) ? careerDna.softSkills : [];
-
-  async function handleInviteFriends() {
-    if (!referralLink) {
-      setInviteMessage("Referral link is still loading.");
-      return;
-    }
-
-    const shareText = `Join HireFlow AI and get 2 weeks free: ${referralLink}`;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "HireFlow AI",
-          text: "Join HireFlow AI and get 2 weeks free.",
-          url: referralLink,
-        });
-        setInviteMessage("Referral link shared.");
-        return;
-      }
-
-      await navigator.clipboard.writeText(shareText);
-      setInviteMessage("Referral link copied.");
-    } catch {
-      setInviteMessage("Share canceled. You can still copy your referral link below.");
-    }
-  }
-
-  async function handleCopyReferralLink() {
-    if (!referralLink) {
-      setInviteMessage("Referral link unavailable right now.");
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(referralLink);
-      setInviteMessage("Referral link copied.");
-    } catch {
-      setInviteMessage("Could not copy the referral link.");
-    }
-  }
 
   const loadingPage = <LoadingScreen message="Checking your session..." />;
 
@@ -2878,7 +2618,7 @@ function App() {
                 <div className="hf-quick-actions">
                   <button className="hf-quick-action-btn" onClick={() => goToDashboardTab("resume")}>Upload Resume</button>
                   <button className="hf-quick-action-btn" onClick={() => goToDashboardTab("queue")}>Search Jobs</button>
-                  <button className="hf-quick-action-btn" onClick={() => goToDashboardTab("applications")}>Generate Cover Letter</button>
+                  <button className="hf-quick-action-btn" onClick={() => goToDashboardTab("applications")}>Prepare Assets</button>
                   <button className="hf-quick-action-btn" onClick={() => goToDashboardTab("applications")}>View Applications</button>
                 </div>
               </div>
@@ -2906,9 +2646,14 @@ function App() {
                     <div className="hf-usage-fill" style={{ width: `${planUsagePercent}%` }} />
                   </div>
                   {user?.plan === "free" ? (
-                    <button className="hf-btn hf-btn-primary hf-full-btn" onClick={() => goToDashboardTab("billing")}>
-                      Upgrade Plan
-                    </button>
+                    <>
+                      <p className="hf-muted-line">Free: 5 job views, 1 resume tailor, 1 cover letter per month.</p>
+                      <button className="hf-btn hf-btn-primary hf-full-btn" onClick={() => goToDashboardTab("billing")}>
+                        {freeJobViewLimitReached || freeResumeLimitReached || freeCoverLimitReached
+                          ? "Upgrade to $5/month for complete access"
+                          : "Upgrade Now"}
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -3004,7 +2749,7 @@ function App() {
           <aside className="hf-command-sidebar hf-panel">
             <div className="hf-panel-header">
               <h3>Command Center</h3>
-              <p>Plan, usage, and the fastest controls in one sidebar.</p>
+              <p>Plan, queue settings, and refresh controls.</p>
             </div>
 
             <div className="hf-sidebar-stack">
@@ -3012,7 +2757,6 @@ function App() {
                 <span className="hf-label">Current Plan</span>
                 <div className="hf-chip-row">
                   <span className="hf-chip hf-chip-red">{user?.plan || "free"}</span>
-                  <span className="hf-chip hf-chip-dark">{user?.status || "active"}</span>
                 </div>
               </div>
 
@@ -3030,44 +2774,60 @@ function App() {
                     : `${applicationsUsed} of ${applicationsLimit} applications used`}
                 </p>
                 {user?.plan === "free" ? (
-                  <button className="hf-btn hf-btn-primary hf-full-btn">Upgrade to Pro</button>
+                  <button className="hf-btn hf-btn-primary hf-full-btn" onClick={() => goToDashboardTab("billing")}>
+                    {freeJobViewLimitReached || freeResumeLimitReached || freeCoverLimitReached
+                      ? "Upgrade to $5/month for complete access"
+                      : "Upgrade Now"}
+                  </button>
                 ) : null}
               </div>
 
               <div className="hf-sidebar-card" ref={quickSettingsRef}>
-                <span className="hf-label">Quick Settings</span>
+                <span className="hf-label">Work Types</span>
                 <div className="hf-chip-row">
-                  {workTypes.map((type) => (
-                    <span className="hf-chip hf-chip-green" key={type}>
+                  {["remote", "hybrid", "onsite"].map((type) => (
+                    <button
+                      key={type}
+                      className={workTypes.includes(type) ? "hf-chip hf-chip-green" : "hf-chip hf-chip-dark"}
+                      onClick={() =>
+                        setWorkTypes((prev) =>
+                          prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type]
+                        )
+                      }
+                    >
                       {type}
-                    </span>
+                    </button>
                   ))}
                 </div>
-                <p className="hf-muted-line">
-                  Roles: {preferredRoles.length ? preferredRoles.join(", ") : "Not set"}
-                </p>
-                <p className="hf-muted-line">
-                  Locations: {preferredLocations.length ? preferredLocations.join(", ") : "Not set"}
-                </p>
+                <div className="hf-field-block">
+                  <label className="hf-label">Roles</label>
+                  <input
+                    className="hf-input"
+                    value={jobRole}
+                    onChange={(e) => setJobRole(e.target.value)}
+                    placeholder="Backend engineer, product manager"
+                  />
+                </div>
+                <div className="hf-field-block">
+                  <label className="hf-label">Locations</label>
+                  <input
+                    className="hf-input"
+                    value={jobLocation}
+                    onChange={(e) => setJobLocation(e.target.value)}
+                    placeholder="Remote, Bengaluru"
+                  />
+                </div>
                 <div className="hf-sidebar-actions">
+                  <button className="hf-btn hf-btn-secondary" onClick={handleJobsRefreshNow} disabled={jobsLoading}>
+                    {jobsLoading ? "Searching..." : "Refresh Queue"}
+                  </button>
                   <button className="hf-btn hf-btn-secondary" onClick={handleJobsRefreshNow} disabled={jobsLoading}>
                     {jobsLoading ? "Searching..." : "Find Jobs Now"}
                   </button>
                   <button className="hf-btn hf-btn-ghost" onClick={handleSavePreferences} disabled={preferencesSaving}>
                     {preferencesSaving ? "Saving..." : "Save Settings"}
                   </button>
-                  <button className="hf-btn hf-btn-ghost" onClick={handleAutoApplyNow} disabled={autoApplyLoading}>
-                    {autoApplyLoading ? "Running..." : "Run Auto Apply"}
-                  </button>
                 </div>
-                {autoApplyLoading ? <p className="hf-status-note">Running auto apply on your saved queue...</p> : null}
-                {autoApplyMessage ? (
-                  <p className="hf-success">
-                    {autoApplyMessage}
-                    {autoAppliedJobs.length ? ` ${autoAppliedJobs.length} job${autoAppliedJobs.length === 1 ? "" : "s"} moved forward.` : ""}
-                  </p>
-                ) : null}
-                {autoApplyError ? <p className="hf-error">{autoApplyError}</p> : null}
               </div>
             </div>
           </aside>
@@ -3075,7 +2835,7 @@ function App() {
           <main className="hf-command-main hf-panel">
             <div className="hf-control-center-actions">
               <button className="hf-btn hf-btn-primary" onClick={handleSavePreferences} disabled={preferencesSaving}>
-                {preferencesSaving ? "Saving..." : "Save Preferences"}
+                {preferencesSaving ? "Saving..." : "Save Settings"}
               </button>
               <button className="hf-btn hf-btn-secondary" onClick={handleSaveResumeVault} disabled={resumeVaultSaving || resumeVaultLoading}>
                 {resumeVaultSaving ? "Saving..." : resumeVaultText ? "Replace Resume" : "Save Resume"}
@@ -3133,15 +2893,9 @@ function App() {
               appliedCount={appliedCount}
               activeControlSection={activeControlSection}
               goToDashboardTab={goToDashboardTab}
-              applicationRetryMessage={applicationRetryMessage}
-              applicationRetryError={applicationRetryError}
-              applicationAnalytics={applicationAnalytics}
               applicationsWithContext={applicationsWithContext}
               updatingApplicationId={updatingApplicationId}
               updateApplicationStatus={updateApplicationStatus}
-              canRetryApplication={canRetryApplication}
-              handleRetryApplication={handleRetryApplication}
-              retryingApplicationId={retryingApplicationId}
               interviewApplications={interviewApplications}
               activeInterviewApplication={activeInterviewApplication}
               interviewPrepRefreshingId={interviewPrepRefreshingId}
@@ -3212,27 +2966,14 @@ function App() {
               setJobLocation={setJobLocation}
               workTypes={workTypes}
               setWorkTypes={setWorkTypes}
+              handleJobsRefreshNow={handleJobsRefreshNow}
+              jobsLoading={jobsLoading}
               careerDna={careerDna}
               hardSkills={hardSkills}
               softSkills={softSkills}
               setCareerInterviewOpen={setCareerInterviewOpen}
               setCareerInterviewStep={setCareerInterviewStep}
               careerInterviewCompletedAt={careerInterviewCompletedAt}
-              successfulReferrals={successfulReferrals}
-              freeMonthsEarned={freeMonthsEarned}
-              bonusWeeksGranted={bonusWeeksGranted}
-              referralLoading={referralLoading}
-              referralLink={referralLink}
-              handleInviteFriends={handleInviteFriends}
-              handleCopyReferralLink={handleCopyReferralLink}
-              connections={connections}
-              connectionsLoading={connectionsLoading}
-              connectionsError={connectionsError}
-              inviteMessage={inviteMessage}
-              referralError={referralError}
-              sourceCatalogLoading={sourceCatalogLoading}
-              sourceCatalogError={sourceCatalogError}
-              groupedSourceCatalog={groupedSourceCatalog}
               activeDashboardTab={activeDashboardTab}
               user={user}
               applicationsLimit={applicationsLimit}
@@ -3488,6 +3229,12 @@ function App() {
                         onClick={handleDownloadCoverLetterPdf}
                       >
                         Download as PDF
+                      </button>
+                      <button
+                        className="hf-btn hf-btn-secondary"
+                        onClick={handleDownloadCoverLetterTxt}
+                      >
+                        Download as TXT
                       </button>
                       <button
                         className="hf-btn hf-btn-ghost"
@@ -4291,14 +4038,10 @@ function JobCard({
   const jobLink = job.applyUrl || job.jobUrl || "";
   const primaryAction = isManual && !manualInProgress ? onStartManualApply : onMarkApplied;
   const primaryLabel = applying
-    ? "Applying..."
+    ? "Saving..."
     : appliedSuccess
-      ? "Applied by HireFlow ✓"
-      : isManual && manualInProgress
-        ? "✓ Mark Applied"
-        : isManual
-          ? "Finish Application"
-          : "Apply by HireFlow";
+      ? "Saved ✓"
+      : "Save";
   const cardStyle = swipeOffsetX
     ? {
         transform: `translateX(${swipeOffsetX}px) rotate(${swipeOffsetX / 24}deg)`,
@@ -4712,7 +4455,7 @@ function getJobStatusPresentation(job) {
     return {
       label: "Ready",
       className: "hf-chip hf-chip-green",
-      reason: "HireFlow has what it needs to apply from the dashboard.",
+      reason: "This match is ready to save into tracking or open on the original job board.",
     };
   }
 
@@ -5065,9 +4808,9 @@ function AuthScreen({
         <section className="hf-landing-hero">
           <div className="hf-landing-copy">
             <p className="hf-brand-eyebrow">HireFlow AI</p>
-            <h1>Stop Applying. Start Getting Hired.</h1>
+            <h1>Find Jobs That Actually Match You.</h1>
             <p className="hf-landing-subheadline">
-              HireFlow AI tailors your resume, writes your cover letter, and applies to jobs automatically while you sleep.
+              HireFlow scans every major job board and shows you only roles that match your resume 8 out of 10 or above.
             </p>
             <div className="hf-landing-actions">
               <button className="hf-btn hf-btn-primary hf-btn-hero" onClick={jumpToRegister}>
@@ -5082,10 +4825,10 @@ function AuthScreen({
 
           <div className="hf-landing-side">
             <div className="hf-landing-proof-card">
-              <span className="hf-chip hf-chip-green">Always-on job automation</span>
-              <h3>Wake up to more applications already moving.</h3>
+              <span className="hf-chip hf-chip-green">High-signal job discovery</span>
+              <h3>See the strongest matches first.</h3>
               <p>
-                HireFlow AI keeps your search active with tailored resumes, stronger cover letters, and a workflow built to create momentum.
+                HireFlow keeps your queue focused on roles worth reviewing, without flooding you with weak matches.
               </p>
             </div>
           </div>
@@ -5131,7 +4874,7 @@ function AuthScreen({
         <section className="hf-landing-section">
           <div className="hf-panel-header">
             <h3>Pricing</h3>
-            <p>Start free, then scale up when you want more automated reach.</p>
+            <p>Start free, then upgrade when you want complete access.</p>
           </div>
           <div className="hf-pricing-grid">
             {LANDING_PRICING.map((item) => (
@@ -5139,6 +4882,7 @@ function AuthScreen({
                 <span className="hf-chip hf-chip-dark">{item.tier}</span>
                 <strong>{item.price}</strong>
                 <p>{item.description}</p>
+                {item.featured ? <button className="hf-btn hf-btn-primary hf-full-btn" onClick={jumpToRegister}>Upgrade Now</button> : null}
               </div>
             ))}
           </div>

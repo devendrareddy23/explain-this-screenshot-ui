@@ -67,7 +67,7 @@ export default function JobsSection({
   return (
     <Section
       title="Job Queue"
-      subtitle="Review matched roles, prepare assets, and move the strongest jobs forward."
+      subtitle="Review matched roles, save the strongest ones, and open the original job page when you're ready."
       summary={queueSectionSummary}
       open={activeControlSection === "queue"}
       onToggle={() => goToDashboardTab(activeControlSection === "queue" ? "home" : "queue")}
@@ -181,8 +181,8 @@ export default function JobsSection({
               ) : null}
             </div>
 
-            <p className="hf-queue-shortcuts">← Left arrow or A = Skip &nbsp;&nbsp; • &nbsp;&nbsp; → Right arrow or D = Apply &nbsp;&nbsp; • &nbsp;&nbsp; Space = View full job details</p>
-            <p className="hf-queue-hint">← Skip<span>Apply →</span><span>Space to view details</span></p>
+            <p className="hf-queue-shortcuts">← Left arrow or A = Skip &nbsp;&nbsp; • &nbsp;&nbsp; → Right arrow or D = Save &nbsp;&nbsp; • &nbsp;&nbsp; Space = View full job details</p>
+            <p className="hf-queue-hint">← Skip<span>Save →</span><span>Space to view details</span></p>
           </div>
         ) : (
           <StateCard

@@ -6,15 +6,9 @@ export default function ApplicationsSection({
   appliedCount,
   activeControlSection,
   goToDashboardTab,
-  applicationRetryMessage,
-  applicationRetryError,
-  applicationAnalytics,
   applicationsWithContext,
   updatingApplicationId,
   updateApplicationStatus,
-  canRetryApplication,
-  handleRetryApplication,
-  retryingApplicationId,
   interviewApplications,
   activeInterviewApplication,
   interviewPrepRefreshingId,
@@ -77,10 +71,24 @@ export default function ApplicationsSection({
     return "Application recorded";
   };
 
+  const getDisplayStatus = (status = "") => {
+    if (status === "Interview" || status === "Viewed" || status === "Negotiating") return "Interviewing";
+    if (status === "Offer") return "Offered";
+    if (status === "Rejected") return "Rejected";
+    return "Applied";
+  };
+
+  const mapDisplayStatusToBackend = (status = "") => {
+    if (status === "Interviewing") return "Interview";
+    if (status === "Offered") return "Offer";
+    if (status === "Rejected") return "Rejected";
+    return "Applied";
+  };
+
   return (
     <Section
       title="Applications"
-      subtitle="Track sent jobs, outcomes, and generated assets without leaving the dashboard."
+      subtitle="Track recorded applications and open the original job posting when you need it."
       summary={applicationsSectionSummary}
       open={activeControlSection === "applications"}
       onToggle={() => goToDashboardTab(activeControlSection === "applications" ? "home" : "applications")}
@@ -90,23 +98,13 @@ export default function ApplicationsSection({
       <div className="hf-command-tabpanel">
         <div className="hf-panel-header">
           <h3>Applications</h3>
-          <p>Track every application HireFlow has already recorded and update what happened next.</p>
+          <p>Track every job you moved out of the queue and into application tracking.</p>
         </div>
         <p className="hf-muted-line">
           {appliedCount
-            ? "Jobs leave the queue and appear here after HireFlow records them as applications."
-            : "Applications appear here only after HireFlow records them or you mark manual completion."}
+            ? "Jobs leave the queue and appear here once you save them into tracking."
+            : "Jobs appear here after you move them out of the queue."}
         </p>
-        <p className="hf-muted-line">Recruiter outreach coming soon.</p>
-        {applicationRetryMessage ? <p className="hf-success">{applicationRetryMessage}</p> : null}
-        {applicationRetryError ? <p className="hf-error">{applicationRetryError}</p> : null}
-
-        {applicationAnalytics?.message ? (
-          <div className="hf-winner-banner">
-            <span className="hf-chip hf-chip-green">Resume Winner</span>
-            <strong>{applicationAnalytics.message}</strong>
-          </div>
-        ) : null}
 
         <div className="hf-table-shell">
           <table className="hf-table">
@@ -114,16 +112,17 @@ export default function ApplicationsSection({
               <tr>
                 <th>Role</th>
                 <th>Company</th>
-                <th>Applied</th>
-                <th>Status</th>
                 <th>Source</th>
-                <th>Actions</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>View Job</th>
               </tr>
             </thead>
             <tbody>
               {applicationsWithContext.length ? (
                 applicationsWithContext.map((application) => {
                   const job = application.jobData || {};
+                  const jobLink = application.applyUrl || job.applyUrl || job.jobUrl || "";
                   return (
                     <tr key={application._id}>
                       <td>
@@ -131,41 +130,30 @@ export default function ApplicationsSection({
                         <div className="hf-table-meta">
                           {getRecordedStateLabel(application, job)}
                         </div>
-                        {application.resumeVariant ? (
-                          <div className="hf-table-meta">
-                            Version {application.resumeVariant} • {application.resumeVariantLabel || "Resume experiment"}
-                          </div>
-                        ) : null}
                       </td>
                       <td>{application.company || job.company || "Unknown company"}</td>
+                      <td>{application.source || job.source || "Unknown"}</td>
                       <td>{application.appliedAt ? new Date(application.appliedAt).toLocaleDateString() : "Recently"}</td>
                       <td>
                         <select
                           className="hf-input hf-table-select"
-                          value={application.lifecycleStatus}
-                          onChange={(e) => updateApplicationStatus(application.job, e.target.value)}
+                          value={getDisplayStatus(application.lifecycleStatus)}
+                          onChange={(e) => updateApplicationStatus(application.job, mapDisplayStatusToBackend(e.target.value))}
                           disabled={updatingApplicationId === application._id}
                         >
-                          {["Applied", "Viewed", "Interview", "Offer", "Negotiating", "Rejected"].map((status) => (
+                          {["Applied", "Interviewing", "Offered", "Rejected"].map((status) => (
                             <option key={status} value={status}>
                               {status}
                             </option>
                           ))}
                         </select>
                       </td>
-                      <td>{application.source || job.source || "Unknown"}</td>
                       <td>
-                        {canRetryApplication(application) ? (
-                          <button
-                            className="hf-btn hf-btn-secondary hf-btn-small"
-                            onClick={() => handleRetryApplication(application)}
-                            disabled={retryingApplicationId === application._id}
-                          >
-                            {retryingApplicationId === application._id ? "Retrying..." : "Retry"}
-                          </button>
-                        ) : (
-                          <span className="hf-muted-line">—</span>
-                        )}
+                        {jobLink ? (
+                          <a className="hf-btn hf-btn-secondary hf-btn-small" href={jobLink} target="_blank" rel="noreferrer">
+                            View Job
+                          </a>
+                        ) : <span className="hf-muted-line">—</span>}
                       </td>
                     </tr>
                   );
@@ -180,19 +168,6 @@ export default function ApplicationsSection({
             </tbody>
           </table>
         </div>
-        {applicationAnalytics?.variants?.length ? (
-          <div className="hf-variant-scoreboard">
-            {applicationAnalytics.variants.map((variant) => (
-              <div className="hf-variant-score-card" key={variant.variantId}>
-                <span className="hf-chip hf-chip-dark">Version {variant.variantId}</span>
-                <strong>{variant.responseRate}% response rate</strong>
-                <p>
-                  {variant.appliedCount} applications • {variant.responseCount} positive responses
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : null}
         {interviewApplications.length ? (
           <div className="hf-interview-command">
             <div className="hf-interview-command-head">
