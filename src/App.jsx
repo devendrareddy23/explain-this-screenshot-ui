@@ -491,7 +491,13 @@ function App() {
       return visibleQueuedJobs;
     }
 
-    return visibleQueuedJobs.filter((job) => getJobWorkMode(job).toLowerCase() === queueFilter);
+    return visibleQueuedJobs.filter((job) => {
+      if (["remote", "hybrid", "onsite"].includes(queueFilter)) {
+        return getJobWorkMode(job).toLowerCase() === queueFilter;
+      }
+
+      return getJobSourceKey(job) === queueFilter;
+    });
   }, [queueFilter, visibleQueuedJobs]);
   const queueStackJobs = useMemo(() => filteredQueuedJobs.slice(0, 3), [filteredQueuedJobs]);
   const activeQueueJob = queueStackJobs[0] || null;
@@ -1328,7 +1334,7 @@ function App() {
       resetUnauthorizedState();
       setUser(data.user);
       setShowAuthScreen(false);
-      setAuthMessage("Account created. Loading your dashboard...");
+      setAuthMessage("Account created. Finding your first matches...");
       setBootError("");
       setBootLoading(false);
       navigate("/dashboard", { replace: true });
@@ -1695,29 +1701,30 @@ function App() {
     }
   }
 
-  async function handleJobsSearch() {
+  async function handleJobsRefreshNow() {
     try {
       setJobsLoading(true);
       setJobsError("");
-      setSearchResults([]);
+      setSavedJobsError("");
+      setQueueActionError("");
+      setQueueActionMessage("");
       setHasSearchedJobs(true);
 
-      const data = await apiRequest("/api/jobs/search", {
+      const data = await apiRequest("/api/jobs/refresh", {
         method: "POST",
-        body: JSON.stringify({
-          search: preferredRoles.join(", ") || jobRole,
-          location: preferredLocations.join(", ") || jobLocation,
-          country,
-          remoteOnly: workTypes.length === 1 && workTypes[0] === "remote",
-          workTypes,
-          minimumMatchScore,
-        }),
       });
+
       const nextJobs = Array.isArray(data?.jobs) ? data.jobs : [];
       setSearchResults(nextJobs);
-      await loadStoredJobs();
+      setQueueActionMessage(
+        nextJobs.length
+          ? `Found ${nextJobs.length} job${nextJobs.length === 1 ? "" : "s"} for your queue.`
+          : "No jobs found yet. Complete your profile to improve job matches."
+      );
+      await refreshOperationalData();
     } catch (error) {
-      setJobsError(error.message || "Failed to search jobs.");
+      setJobsError(error.message || "Failed to refresh jobs.");
+      setQueueActionError("We couldn't refresh your queue right now. Please try again.");
     } finally {
       setJobsLoading(false);
     }
@@ -2198,8 +2205,8 @@ function App() {
         : {
             title: "Refresh your job queue",
             body: "HireFlow is ready for the next batch of matches.",
-            actionLabel: "Find Jobs",
-            onAction: handleJobsSearch,
+            actionLabel: "Find Jobs Now",
+            onAction: handleJobsRefreshNow,
           };
   useEffect(() => {
     if (activeDashboardTab !== "applications") {
@@ -3043,8 +3050,8 @@ function App() {
                   Locations: {preferredLocations.length ? preferredLocations.join(", ") : "Not set"}
                 </p>
                 <div className="hf-sidebar-actions">
-                  <button className="hf-btn hf-btn-secondary" onClick={handleJobsSearch} disabled={jobsLoading}>
-                    {jobsLoading ? "Searching..." : "Refresh Queue"}
+                  <button className="hf-btn hf-btn-secondary" onClick={handleJobsRefreshNow} disabled={jobsLoading}>
+                    {jobsLoading ? "Searching..." : "Find Jobs Now"}
                   </button>
                   <button className="hf-btn hf-btn-ghost" onClick={handleSavePreferences} disabled={preferencesSaving}>
                     {preferencesSaving ? "Saving..." : "Save Settings"}
@@ -3073,8 +3080,8 @@ function App() {
               <button className="hf-btn hf-btn-secondary" onClick={handleSaveResumeVault} disabled={resumeVaultSaving || resumeVaultLoading}>
                 {resumeVaultSaving ? "Saving..." : resumeVaultText ? "Replace Resume" : "Save Resume"}
               </button>
-              <button className="hf-btn hf-btn-secondary" onClick={handleJobsSearch} disabled={jobsLoading}>
-                {jobsLoading ? "Searching..." : "Find Jobs"}
+              <button className="hf-btn hf-btn-secondary" onClick={handleJobsRefreshNow} disabled={jobsLoading}>
+                {jobsLoading ? "Searching..." : "Find Jobs Now"}
               </button>
             </div>
 
@@ -3087,7 +3094,7 @@ function App() {
               queueSectionSummary={queueSectionSummary}
               activeControlSection={activeControlSection}
               goToDashboardTab={goToDashboardTab}
-              handleJobsSearch={handleJobsSearch}
+              handleJobsRefreshNow={handleJobsRefreshNow}
               jobsLoading={jobsLoading}
               queueTotalToday={queueTotalToday}
               queueFilter={queueFilter}
@@ -4342,6 +4349,7 @@ function JobCard({
         </div>
 
         <div className="hf-chip-row hf-job-status-row">
+          {job?.source ? <span className="hf-chip hf-chip-dark">{job.source}</span> : null}
           <span className={statusPresentation.className} title={statusPresentation.reason}>
             {statusPresentation.label}
           </span>
@@ -4396,6 +4404,8 @@ function QueueStateCard({
   secondaryText = "",
   actionLabel = "",
   onAction = null,
+  secondaryActionLabel = "",
+  onSecondaryAction = null,
   variant = "default",
 }) {
   return (
@@ -4407,9 +4417,16 @@ function QueueStateCard({
       <p>{subtitle}</p>
       {secondaryText ? <p className="hf-queue-state-secondary">{secondaryText}</p> : null}
       {actionLabel && onAction ? (
-        <button className={variant === "success" ? "hf-btn hf-btn-primary" : "hf-btn hf-btn-secondary"} onClick={onAction}>
-          {actionLabel}
-        </button>
+        <div className="hf-chip-row">
+          <button className={variant === "success" ? "hf-btn hf-btn-primary" : "hf-btn hf-btn-secondary"} onClick={onAction}>
+            {actionLabel}
+          </button>
+          {secondaryActionLabel && onSecondaryAction ? (
+            <button className="hf-btn hf-btn-ghost" onClick={onSecondaryAction}>
+              {secondaryActionLabel}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -4619,6 +4636,15 @@ function getJobWorkMode(job) {
   }
 
   return "Onsite";
+}
+
+function getJobSourceKey(job) {
+  return String(job?.source || "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/\+/g, "plus")
+    .replace(/\s+/g, "");
 }
 
 function getPlanApplicationLimit(plan) {

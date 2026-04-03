@@ -7,7 +7,7 @@ export default function JobsSection({
   queueSectionSummary,
   activeControlSection,
   goToDashboardTab,
-  handleJobsSearch,
+  handleJobsRefreshNow,
   jobsLoading,
   queueTotalToday,
   queueFilter,
@@ -42,6 +42,27 @@ export default function JobsSection({
   const SkeletonCard = JobSkeleton;
   const PreviewCard = QueuePreviewCard;
   const QueueJobCard = JobCard;
+  const sourceFilters = Array.from(
+    new Map(
+      visibleQueuedJobs
+        .filter((job) => job?.source)
+        .map((job) => {
+          const key = String(job.source || "")
+            .trim()
+            .toLowerCase()
+            .replace(/&/g, "and")
+            .replace(/\+/g, "plus")
+            .replace(/\s+/g, "");
+
+          return [key, { key, label: job.source }];
+        })
+    ).values()
+  ).slice(0, 5);
+  const filterPills = [
+    { key: "all", label: "All" },
+    { key: "remote", label: "Remote" },
+    ...sourceFilters,
+  ];
 
   return (
     <Section
@@ -50,8 +71,8 @@ export default function JobsSection({
       summary={queueSectionSummary}
       open={activeControlSection === "queue"}
       onToggle={() => goToDashboardTab(activeControlSection === "queue" ? "home" : "queue")}
-      actionLabel="Find Jobs"
-      onAction={handleJobsSearch}
+      actionLabel="Find Jobs Now"
+      onAction={handleJobsRefreshNow}
       actionDisabled={jobsLoading}
     >
       <div className="hf-command-tabpanel">
@@ -62,12 +83,7 @@ export default function JobsSection({
           </div>
 
           <div className="hf-filter-pills" role="tablist" aria-label="Queue filters">
-            {[
-              { key: "all", label: "All" },
-              { key: "remote", label: "Remote" },
-              { key: "hybrid", label: "Hybrid" },
-              { key: "onsite", label: "Onsite" },
-            ].map((filter) => (
+            {filterPills.map((filter) => (
               <button
                 key={filter.key}
                 className={queueFilter === filter.key ? "hf-filter-pill active" : "hf-filter-pill"}
@@ -95,7 +111,7 @@ export default function JobsSection({
             title="Something went wrong"
             subtitle="We couldn't load your jobs right now."
             actionLabel="Try again"
-            onAction={handleJobsSearch}
+            onAction={handleJobsRefreshNow}
           />
         ) : !visibleQueuedJobs.length && queueReviewedToday > 0 ? (
           <StateCard
@@ -114,19 +130,21 @@ export default function JobsSection({
             subtitle={
               appliedCount > 0
                 ? "Jobs move out of this queue after HireFlow records them in Applications."
-                : "We're searching across 40+ job boards."
+                : "Complete your profile to get better job matches."
             }
             secondaryText={
               appliedCount > 0
                 ? "That means there is nothing waiting for review right now. Open Applications to review what already moved forward."
-                : "New matches land every few hours."
+                : "Add your preferred roles, locations, and resume so HireFlow can search more accurately. You can also run a search right now with default India software roles."
             }
-            actionLabel={appliedCount > 0 ? "View Applications →" : "Update my preferences →"}
+            actionLabel={appliedCount > 0 ? "View Applications →" : "Set Up Profile"}
             onAction={
               appliedCount > 0
                 ? () => goToDashboardTab("applications")
                 : () => quickSettingsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
             }
+            secondaryActionLabel={appliedCount > 0 ? "" : "Search for Jobs Now"}
+            onSecondaryAction={appliedCount > 0 ? null : handleJobsRefreshNow}
           />
         ) : filteredQueuedJobs.length ? (
           <div className="hf-queue-stage">
@@ -169,7 +187,7 @@ export default function JobsSection({
         ) : (
           <StateCard
             icon="🔍"
-            title={`No ${queueFilter} matches yet`}
+            title={`No ${queueFilter === "all" ? "matching" : queueFilter} jobs yet`}
             subtitle="We're searching across 40+ job boards."
             secondaryText="Try another filter or give HireFlow a little time to find more matches."
             actionLabel="Update my preferences →"
